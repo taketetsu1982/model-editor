@@ -82,6 +82,23 @@ skills/
 npx vitest run
 ```
 
+## Claude Code プラグイン
+
+このリポジトリはClaude Codeプラグインとして利用できる。
+
+### ローカルテスト
+
+```bash
+claude --plugin-dir /path/to/product-model-editor
+```
+
+### スキル
+
+| スキル | 説明 |
+|---|---|
+| `/product-model-editor:objects` | オブジェクトモデルのJSON生成・編集 |
+| `/product-model-editor:views` | ビュー・遷移のJSON生成・編集 |
+
 ## ライセンス
 
 [MIT License](LICENSE)
