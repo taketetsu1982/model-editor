@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Model Editor</title>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" as="style"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block"/>
+<link rel="stylesheet" href="./lib/editor-base.css"/>
+<style>
+  :root{--md-sys-color-on-secondary:#FFFFFF;--md-sys-color-secondary-container:#F1F3F4;--md-sys-color-tertiary:#7D5260;--md-sys-color-surface-dim:#E8EAED}
+</style>
+</head>
+<body>
+<div class="file-drop-overlay" id="ed-drop-overlay"><span class="drop-msg">Drop JSON file to connect</span></div>
+<div class="ed-toast" id="ed-toast"></div>
+<div class="ed-toolbar" id="ed-toolbar">
+  <div style="flex:1"></div>
+  <span class="ed-edited" id="ed-edited">Edited</span>
+  <button class="ed-connect-btn" id="ed-connect-btn" onclick="handleConnect()">
+    <span class="ed-dot" id="ed-dot"></span>
+    <span id="ed-label">Connect</span>
+    <span class="ed-hint" id="ed-hint">(Drop a JSON file)</span>
+  </button>
+  <label class="ed-auto-switch" id="ed-auto-btn" onclick="toggleAuto()" title="Auto save">Auto <span class="ed-switch-track"><span class="ed-switch-thumb"></span></span></label>
+</div>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="./lib/shared.js"></script>
+<script src="./lib/object-logic.js"></script>
+<script src="./lib/view-logic.js"></script>
+<script src="./lib/file-io.js"></script>
+<script src="./lib/ui-components.js"></script>
+
+<script>
+let passthrough={};
+let dataRef=null;
+
+function splitData(data){
+  const{objects,views,transitions,...rest}=data;
+  passthrough=rest;
+  // objects マイグレーション: belongs-to → has-many
+  const objs=objects||[];
+  let migrated=false;
+  objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
+  if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
+  return{objects:objs,views:views||[],transitions:transitions||[]};
+}
+
+const io=window.__editorIO.createFileIO({
+  ids:{toast:'ed-toast',dot:'ed-dot',label:'ed-label',hint:'ed-hint',edited:'ed-edited',autoBtn:'ed-auto-btn',overlay:'ed-drop-overlay'},
+  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,transitions:dataRef.transitions};},
+  onDisconnect(){passthrough={};},
+  loadDataKey:'__edLoadData',
+  keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
+  filePickerId:'pm-editor',
+});
+const{showToast,markModified}=io;
+function handleConnect(){return io.handleConnect();}
+function toggleAuto(){return io.toggleAuto();}
+io.setupDragDrop();
+io.setupKeyboard();
+</script>
+
+<script type="text/babel">
+{/* TODO: Step 5b〜5eでコンポーネントを追加 */}
+</script>
+</body>
+</html>
