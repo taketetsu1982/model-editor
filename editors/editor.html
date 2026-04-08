@@ -40,7 +40,7 @@ let passthrough={};
 let dataRef=null;
 
 function splitData(data){
-  const{objects,views,transitions,...rest}=data;
+  const{objects,actors,views,transitions,...rest}=data;
   passthrough=rest;
   // objects マイグレーション: belongs-to → has-many
   const objs=objects||[];
@@ -59,12 +59,12 @@ function splitData(data){
     return{...v,fields:v.fields||[],verbs:v.verbs||[]};
   });
   if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  return{objects:objs,views:vws,transitions:transitions||[]};
+  return{objects:objs,actors:actors||[],views:vws,transitions:transitions||[]};
 }
 
 const io=window.__editorIO.createFileIO({
   ids:{toast:'ed-toast',dot:'ed-dot',label:'ed-label',hint:'ed-hint',edited:'ed-edited',autoBtn:'ed-auto-btn',overlay:'ed-drop-overlay'},
-  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,transitions:dataRef.transitions};},
+  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,actors:dataRef.actors,views:dataRef.views,transitions:dataRef.transitions};},
   onDisconnect(){passthrough={};},
   loadDataKey:'__edLoadData',
   keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
@@ -106,7 +106,7 @@ const TYPE_LABEL={collection:"Collection",single:"Single"};
 // ビューの表示名: "オブジェクト名 Collection" 等
 const viewLabel=(vw,objs)=>{const on=objName(objs,vw.objectId);const tl=TYPE_LABEL[vw.type]||vw.type;return on+" "+tl;};
 
-const EMPTY={objects:[],views:[],transitions:[]};
+const EMPTY={objects:[],actors:[],views:[],transitions:[]};
 function ensurePositions(data){return _ensurePositions(data,{cols:OBJ_GRID_COLS,gapX:OBJ_GRID_GAP_X,gapY:OBJ_GRID_GAP_Y,padX:OBJ_GRID_PAD_X,padY:OBJ_GRID_PAD_Y});}
 function ensureViewPositions(data){return _ensureViewPositions(data,{cols:VW_GRID_COLS,gapX:VW_GRID_GAP_X,gapY:VW_GRID_GAP_Y,padX:VW_GRID_PAD_X,padY:VW_GRID_PAD_Y,minSpanFactor:160,minSpanMin:200});}
 const loadGenRef={current:0};
@@ -248,8 +248,56 @@ function MapView({model,setModel,setModelSilent,onSelChange}){
   );
 }
 
+/* ===== ActorView ===== */
+function ActorView({model,setModel}){
+  const[selActorId,setSelActorId]=useState(model.actors[0]?.id||null);
+  const[showEdit,setShowEdit]=useState(false);
+  const actor=model.actors.find(a=>a.id===selActorId);
+  const toggleObj=(objId)=>{if(!actor)return;const cur=actor.objectIds||[];const next=cur.includes(objId)?cur.filter(x=>x!==objId):[...cur,objId];setModel(m=>({...m,actors:m.actors.map(a=>a.id===selActorId?{...a,objectIds:next}:a)}));};
+  const handleEditSave=(newList)=>{setModel(m=>({...m,actors:newList}));if(!newList.find(a=>a.id===selActorId))setSelActorId(newList[0]?.id||null);setShowEdit(false);};
+  if(model.actors.length===0)return(<div style={{display:"flex",height:"100%",flexDirection:"column"}}><div style={{background:M3.surface,display:"flex",alignItems:"center",flexShrink:0,minHeight:56,paddingLeft:16,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}><div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:16,gap:8}}><Btn small ghost onClick={()=>setShowEdit(true)}>Edit</Btn></div></div><div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:M3.outline,fontSize:14}}>No actors yet</div>{showEdit&&<ActorEditModal actors={model.actors} onSave={handleEditSave} onClose={()=>setShowEdit(false)}/>}</div>);
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{background:M3.surface,display:"flex",alignItems:"stretch",flexShrink:0,paddingLeft:16,minHeight:56,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
+        {model.actors.map(a=>{const isAct=selActorId===a.id;return<button key={a.id} onClick={()=>setSelActorId(a.id)} style={{padding:"0 24px",border:"none",background:"transparent",cursor:"pointer",color:isAct?"#1A73E8":"#9AA0A6",fontSize:14,fontWeight:isAct?500:400,borderBottom:`3px solid ${isAct?"#1A73E8":"transparent"}`,borderTop:"3px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap"}}>{a.name}</button>;})}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:16,gap:8}}><Btn small ghost onClick={()=>setShowEdit(true)}>Edit</Btn></div>
+      </div>
+      <div style={{flex:1,padding:24,overflowY:"auto"}}>
+        <div style={{fontSize:12,fontWeight:500,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:16}}>Objects accessible by {actor?.name}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {model.objects.map(obj=>{const p=objPalette(model.objects,obj.id);const on=(actor?.objectIds||[]).includes(obj.id);return<button key={obj.id} onClick={()=>toggleObj(obj.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:on?p.bg:"#F5F5F5",border:"none",borderRadius:12,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}}><div style={{width:24,height:24,borderRadius:6,border:on?"none":"2px solid #DADCE0",background:on?p.fg:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"white",fontSize:12,fontWeight:700}}>✓</span>}</div><span style={{fontSize:14,fontWeight:on?600:400,color:on?p.fg:"#C4C7C5"}}>{obj.name}</span></button>;})}
+        </div>
+      </div>
+      {showEdit&&<ActorEditModal actors={model.actors} onSave={handleEditSave} onClose={()=>setShowEdit(false)}/>}
+    </div>
+  );
+}
+
+function ActorEditModal({actors,onSave,onClose}){
+  const[list,setList]=useState(()=>actors.map(a=>({...a})));
+  const[confirmDel,setConfirmDel]=useState(null);
+  const add=()=>{setList(l=>[...l,{id:uid(),name:"New Actor",objectIds:[]}]);};
+  const upd=(i,name)=>setList(l=>l.map((a,j)=>j===i?{...a,name}:a));
+  const del=i=>setList(l=>l.filter((_,j)=>j!==i));
+  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.32)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}><div style={{background:"var(--md-sys-color-surface)",borderRadius:"var(--md-sys-shape-lg)",boxShadow:"var(--md-sys-elevation-2)",width:400,maxHeight:"70vh",display:"flex",flexDirection:"column",fontFamily:"inherit"}} onClick={e=>e.stopPropagation()}>
+    <div style={{padding:"24px 24px 16px",borderBottom:"1px solid var(--md-sys-color-outline-variant)",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:16,fontWeight:500,color:"var(--md-sys-color-on-surface)"}}>Actors</span><Btn ghost small onClick={add}>+ Add</Btn></div>
+    <div style={{flex:1,overflowY:"auto",padding:"8px 24px"}}>
+      {list.map((a,i)=>(<div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid var(--md-sys-color-surface-container)"}}>
+        <input value={a.name} onChange={e=>upd(i,e.target.value)} style={{flex:1,border:"1px solid var(--md-sys-color-outline)",borderRadius:"var(--md-sys-shape-xs)",background:"var(--md-sys-color-surface)",color:"var(--md-sys-color-on-surface)",fontSize:14,padding:"8px 16px",outline:"none",fontFamily:"inherit"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";}} onBlur={e=>{e.target.style.borderColor="";}}/>
+        <button onClick={()=>setConfirmDel(i)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--md-sys-color-outline)",padding:"4px",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="var(--md-sys-color-error-container)";e.currentTarget.style.color="var(--md-sys-color-error)";}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="var(--md-sys-color-outline)";}}><span className="msi" style={{fontSize:18}}>close</span></button>
+      </div>))}
+      {list.length===0&&<div style={{padding:"24px 0",textAlign:"center",color:"var(--md-sys-color-outline)",fontSize:14}}>No actors</div>}
+    </div>
+    <div style={{padding:"16px 24px 24px",borderTop:"1px solid var(--md-sys-color-outline-variant)",display:"flex",justifyContent:"flex-end",gap:8}}>
+      <Btn ghost onClick={onClose}>Cancel</Btn>
+      <Btn accent onClick={()=>onSave(list)}>Save</Btn>
+    </div>
+    {confirmDel!==null&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.32)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setConfirmDel(null)}><div style={{background:"var(--md-sys-color-surface)",borderRadius:"var(--md-sys-shape-lg)",boxShadow:"var(--md-sys-elevation-2)",width:340,padding:"24px 24px 16px",fontFamily:"inherit"}} onClick={e=>e.stopPropagation()}><div style={{fontSize:14,color:"var(--md-sys-color-on-surface)",marginBottom:24}}>「{list[confirmDel]?.name||""}」を削除しますか？</div><div style={{display:"flex",justifyContent:"flex-end",gap:8}}><Btn ghost onClick={()=>setConfirmDel(null)}>いいえ</Btn><Btn danger onClick={()=>{del(confirmDel);setConfirmDel(null);}}>はい</Btn></div></div></div>)}
+  </div></div>);
+}
+
 /* ===== 統合App ===== */
-const TABS=[{id:"object",label:"Object"},{id:"view",label:"View"}];
+const TABS=[{id:"object",label:"Object"},{id:"actor",label:"Actor"},{id:"view",label:"View"}];
 
 function App(){
   const{data:model,setData:setModel,setDataSilent:setModelSilent,undo,redo,reset:resetHistory,histRef,dirtyRef}=useHistory(EMPTY,showToast);
@@ -405,7 +453,7 @@ function App(){
     });
   },[]);
 
-  const counts={object:model.objects.length,view:model.views.length};
+  const counts={object:model.objects.length,actor:model.actors.length,view:model.views.length};
 
   return(
     <div style={{height:"100vh",display:"flex",flexDirection:"column",background:M3.surface,fontFamily:"'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif",fontSize:14}}>
@@ -422,6 +470,7 @@ function App(){
       </div>
       <div style={{flex:1,overflow:"hidden"}}>
         {tab==="object"&&<ObjectView model={model} setModel={setModel} setModelSilent={setModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId}/>}
+        {tab==="actor"&&<ActorView model={model} setModel={setModel}/>}
         {tab==="view"&&<MapView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setMapSelRef}/>}
       </div>
     </div>

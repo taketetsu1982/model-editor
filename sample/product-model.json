@@ -101,6 +101,18 @@
       "y": 297
     }
   ],
+  "actors": [
+    {
+      "id": "owner",
+      "name": "Owner",
+      "objectIds": ["workspace", "project", "task", "member", "label", "comment"]
+    },
+    {
+      "id": "member",
+      "name": "Member",
+      "objectIds": ["project", "task", "comment", "label", "member"]
+    }
+  ],
   "views": [
     {
       "id": "project-list",
