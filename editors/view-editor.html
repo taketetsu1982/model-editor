@@ -364,7 +364,7 @@ function App(){
   return(
     <div style={{height:"100vh",display:"flex",flexDirection:"column",background:M3.surface,fontFamily:"'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif",fontSize:14}}>
       <div style={{height:56,background:"#FFFFFF",display:"flex",alignItems:"stretch",flexShrink:0,paddingLeft:16,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:14,height:14,borderRadius:"var(--md-sys-shape-xs)",background:"#1A73E8"}}/><span style={{fontSize:22,fontWeight:400,color:M3.onSurface}}>View Editor</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><a href="./object-editor.html" style={{fontSize:13,fontWeight:500,color:"#1A73E8",textDecoration:"none",padding:"4px 12px",borderRadius:"var(--md-sys-shape-full)",border:"1px solid #D3E3FD",background:"#EAF1FB"}} onMouseEnter={e=>{e.target.style.background="#D3E3FD";}} onMouseLeave={e=>{e.target.style.background="#EAF1FB";}}>← Object Editor</a><div style={{width:14,height:14,borderRadius:"var(--md-sys-shape-xs)",background:"#1A73E8"}}/><span style={{fontSize:22,fontWeight:400,color:M3.onSurface}}>View Editor</span></div>
         <div ref={barRef} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:16,paddingRight:16,fontSize:14,fontFamily:"inherit"}}/>
       </div>
       <div style={{flex:1,overflow:"hidden"}}>
