@@ -2,10 +2,6 @@
 (function(exports) {
 
   // --- 定数 ---
-  exports.CRUD_OPS = ["C", "R", "U", "D"];
-  exports.CRUD_COLOR = { C: "#1E8E3E", R: "#1A73E8", U: "#E37400", D: "#D93025" };
-  exports.CRUD_BG = { C: "#E6F4EA", R: "#E8F0FE", U: "#FEF7E0", D: "#FCE8E6" };
-
   exports.OBJ_PALETTE = [
     { bg: "#AECBFA", fg: "#174EA6" },
     { bg: "#FDD663", fg: "#7A6200" },
