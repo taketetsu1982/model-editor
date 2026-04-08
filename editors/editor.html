@@ -47,7 +47,19 @@ function splitData(data){
   let migrated=false;
   objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
   if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
-  return{objects:objs,views:views||[],transitions:transitions||[]};
+  // ビューマイグレーション: objects配列 → objectId + fields + verbs
+  let vwMigrated=false;
+  const vws=(views||[]).map(v=>{
+    if(v.objects&&!v.objectId){
+      vwMigrated=true;
+      const first=v.objects[0];
+      const{objects:_,...rest2}=v;
+      return{...rest2,objectId:first?.objectId||"",type:first?.variant||v.type||"collection",fields:v.fields||[],verbs:v.verbs||[]};
+    }
+    return{...v,fields:v.fields||[],verbs:v.verbs||[]};
+  });
+  if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
+  return{objects:objs,views:vws,transitions:transitions||[]};
 }
 
 const io=window.__editorIO.createFileIO({
@@ -88,9 +100,8 @@ const SW=240,SH=76;
 // カード内部
 const SC_HEADER_H=36,SC_OBJ_START_Y=40,SC_OBJ_ROW_H=22,SC_OBJ_PAD_X=8;
 // ビュー関連定数
-const VARIANTS=["collection","single"];
-const AREAS=["top","left","right","main","bottom"];
-const AREA_LABELS={top:"Top",left:"Left",right:"Right",bottom:"Bottom",main:"Main"};
+// ビュータイプ定数
+const VIEW_TYPES=["collection","single"];
 const PH_ROWS=[[72,55,80],[64,80,58],[80,62,70]];
 
 const EMPTY={objects:[],views:[],transitions:[]};
@@ -168,13 +179,13 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
   const[panning,setPanning]=useState(false),[zoom,setZoom]=useState(1);
   const dOff=useRef({x:0,y:0}),panStart=useRef({x:0,y:0,px:0,py:0}),didDrag=useRef(false),multiOffsets=useRef({});
   const visVw=model.views;
-  // View + Compositeの両方からノードを検索する関数
-  const findNode=id=>{const s=visVw.find(s=>s.id===id);if(s)return{...s,h:SH+Math.max(0,(s.objects||[]).length)*SC_OBJ_ROW_H};return null;};
+  // ビューノードの検索（高さ計算: fields + verbs）
+  const findNode=id=>{const s=visVw.find(s=>s.id===id);if(!s)return null;const fields=(s.fields||[]).length;const verbs=(s.verbs||[]).length;const h=SH+fields*SC_OBJ_ROW_H+(verbs>0?verbs*SC_OBJ_ROW_H+4:0);return{...s,h};};
   const visNav=model.transitions.filter(n=>findNode(n.from)&&findNode(n.to));
   const selNav=visNav.find(n=>n.id===selNavId);
   const updNav=u=>setModel(m=>({...m,transitions:m.transitions.map(n=>n.id===u.id?u:n)}));
   const delNav=id=>{setSelNavId(null);setEditLabel(false);setModel(m=>({...m,transitions:m.transitions.filter(n=>n.id!==id)}));};
-  const addView=(type="view")=>{const id=uid();const names=model.views.map(s=>s.name);const defaultName=type==="composite"?"New Composite":"New View";setModel(m=>({...m,views:[...m.views,{id,name:uniqueName(defaultName,names),type,x:120/zoom+pan.x,y:120/zoom+pan.y,prompt:"",objects:[]}]}));};
+  const addView=(type="collection")=>{const id=uid();const names=model.views.map(s=>s.name);setModel(m=>({...m,views:[...m.views,{id,name:uniqueName("New View",names),type,objectId:m.objects[0]?.id||"",fields:[],verbs:[],x:120/zoom+pan.x,y:120/zoom+pan.y,prompt:""}]}));};
   const onHandleMD=(e,navId,end)=>{e.preventDefault();e.stopPropagation();const r=svgRef.current.getBoundingClientRect();setNavDrag({navId,end,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});setSelNavId(null);setEditLabel(false);};
   const connOn=conn!==null,connHasSrc=conn!==null&&conn!=="";
   const onBgMD=e=>{if(connOn)return;setPanning(true);panStart.current={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};};
@@ -195,8 +206,8 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
             <defs><pattern id="sdots" width={24/zoom} height={24/zoom} patternUnits="userSpaceOnUse" x={(-pan.x*zoom)%24} y={(-pan.y*zoom)%24}><circle cx={1/zoom} cy={1/zoom} r={1/zoom} fill="#E0E0E0"/></pattern><marker id="sarr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9AA0A6"/></marker><marker id="sarr-hi" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#1A73E8"/></marker></defs>
             <rect width="100%" height="100%" fill="url(#sdots)" data-bg="1" onMouseDown={onBgMD}/>
             <g transform={`scale(${zoom}) translate(${-pan.x},${-pan.y})`}>
-            {/* 1. ビューカード */}
-            {visVw.map(vw=>{const isComp=vw.type==="composite",isConn=conn===vw.id,isSel=selId===vw.id||multiSel.has(vw.id),objs=vw.objects||[],cardH=SH+Math.max(0,objs.length)*SC_OBJ_ROW_H;const dBg="white",dHdr=isComp?"#E8EAED":"#FAFAFA",dTxt="#1A1A1A",dIcon="#5F6368",dBorder=isConn?"#E37400":isSel?"#1A73E8":"#DADCE0",dBorderW=(isConn||isSel)?2.5:1;return(<g key={vw.id} transform={`translate(${vw.x},${vw.y})`} onMouseDown={e=>onBoxMD(e,vw.id)} onDoubleClick={e=>{e.stopPropagation();onSelectScreen(vw.id);}} style={{cursor:connOn?"pointer":"grab"}}><rect x={1} y={2} width={SW} height={cardH} rx={14} fill="rgba(0,0,0,0.04)"/><rect width={SW} height={cardH} rx={14} fill={dBg}/><clipPath id={`clip-${vw.id}`}><rect width={SW} height={cardH} rx={14}/></clipPath><g clipPath={`url(#clip-${vw.id})`}><rect width={SW} height={SC_HEADER_H} fill={dHdr}/><line x1={0} y1={SC_HEADER_H} x2={SW} y2={SC_HEADER_H} stroke="#E0E0E0" strokeWidth="1"/><foreignObject x={0} y={0} width={SW} height={SC_HEADER_H}><div style={{display:"flex",alignItems:"center",gap:4,padding:"0 12px",height:SC_HEADER_H,boxSizing:"border-box"}}><span className="msi" style={{fontSize:18,color:dIcon}}>{isComp?"dashboard":"crop_square"}</span><span style={{fontSize:14,fontWeight:500,color:dTxt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{vw.name}</span></div></foreignObject>{objs.map((obj,oi)=>{const p=objPalette(model.objects,obj.objectId);return(<g key={obj.id||oi} transform={`translate(0,${SC_OBJ_START_Y+oi*SC_OBJ_ROW_H})`}><rect x={SC_OBJ_PAD_X} width={SW-SC_OBJ_PAD_X*2} height={18} rx={9} fill={p.bg+"30"}/><circle cx={18} cy={9} r={4} fill={p.bg}/><text x={28} y={13} fontSize={11} fontWeight="500" fill={p.fg} fontFamily="inherit">{objName(model.objects,obj.objectId)}</text></g>);})}</g><rect width={SW} height={cardH} rx={14} fill="none" stroke={dBorder} strokeWidth={dBorderW}/></g>);})}
+            {/* 1. ビューカード（fields + verbs） */}
+            {visVw.map(vw=>{const fields=vw.fields||[],verbs=vw.verbs||[],isConn=conn===vw.id,isSel=selId===vw.id||multiSel.has(vw.id);const cardH=SH+fields.length*SC_OBJ_ROW_H+(verbs.length>0?verbs.length*SC_OBJ_ROW_H+4:0);const dBg="white",dHdr="#FAFAFA",dTxt="#1A1A1A",dIcon="#5F6368",dBorder=isConn?"#E37400":isSel?"#1A73E8":"#DADCE0",dBorderW=(isConn||isSel)?2.5:1;const typeIcon=vw.type==="single"?"article":"view_list";const p=objPalette(model.objects,vw.objectId);const oName=objName(model.objects,vw.objectId);const fieldStartY=SC_OBJ_START_Y;const verbStartY=fieldStartY+fields.length*SC_OBJ_ROW_H+(verbs.length>0?4:0);return(<g key={vw.id} transform={`translate(${vw.x},${vw.y})`} onMouseDown={e=>onBoxMD(e,vw.id)} onDoubleClick={e=>{e.stopPropagation();onSelectScreen(vw.id);}} style={{cursor:connOn?"pointer":"grab"}}><rect x={1} y={2} width={SW} height={cardH} rx={14} fill="rgba(0,0,0,0.04)"/><rect width={SW} height={cardH} rx={14} fill={dBg}/><clipPath id={`clip-${vw.id}`}><rect width={SW} height={cardH} rx={14}/></clipPath><g clipPath={`url(#clip-${vw.id})`}><rect width={SW} height={SC_HEADER_H} fill={dHdr}/><line x1={0} y1={SC_HEADER_H} x2={SW} y2={SC_HEADER_H} stroke="#E0E0E0" strokeWidth="1"/><foreignObject x={0} y={0} width={SW} height={SC_HEADER_H}><div style={{display:"flex",alignItems:"center",gap:4,padding:"0 12px",height:SC_HEADER_H,boxSizing:"border-box"}}><span className="msi" style={{fontSize:18,color:dIcon}}>{typeIcon}</span><span style={{fontSize:14,fontWeight:500,color:dTxt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{vw.name}</span></div></foreignObject>{oName&&<foreignObject x={0} y={SC_HEADER_H} width={SW} height={SC_OBJ_ROW_H-2}><div style={{display:"flex",alignItems:"center",gap:4,padding:"2px 12px",boxSizing:"border-box"}}><circle style={{width:6,height:6,borderRadius:"50%",background:p.bg,flexShrink:0}}/><span style={{fontSize:10,color:p.fg,fontWeight:500}}>{oName}</span></div></foreignObject>}{fields.map((f,fi)=>(<g key={`f-${fi}`} transform={`translate(0,${fieldStartY+fi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#5F6368" fontFamily="inherit">{f}</text></g>))}{verbs.length>0&&<line x1={SC_OBJ_PAD_X} y1={verbStartY-2} x2={SW-SC_OBJ_PAD_X} y2={verbStartY-2} stroke="#E0E0E0" strokeWidth="1" strokeDasharray="4 2"/>}{verbs.map((v,vi)=>(<g key={`v-${vi}`} transform={`translate(0,${verbStartY+vi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#7D5260" fontFamily="inherit">{v}</text></g>))}</g><rect width={SW} height={cardH} rx={14} fill="none" stroke={dBorder} strokeWidth={dBorderW}/></g>);})}
             {/* 2. ナビ線 */}
             {visNav.map(nav=>{const src=findNode(nav.from),tgt=findNode(nav.to);if(!src||!tgt)return null;const fp=edgePt(src.x,src.y,SW,src.h,tgt.x+SW/2,tgt.y+tgt.h/2),tp=edgePt(tgt.x,tgt.y,SW,tgt.h,src.x+SW/2,src.y+src.h/2),isSel=selNavId===nav.id,col=isSel?"#1A73E8":"#9AA0A6";return(<g key={`nl-${nav.id}`} onClick={e=>{e.stopPropagation();setMultiSel(new Set());multiOffsets.current={};setSelNavId(isSel?null:nav.id);setSelId(null);setEditLabel(false);}}><line x1={fp.x} y1={fp.y} x2={tp.x} y2={tp.y} stroke="transparent" strokeWidth={12} style={{cursor:"pointer"}}/><line x1={fp.x} y1={fp.y} x2={tp.x} y2={tp.y} stroke={col} strokeWidth={isSel?2:1.5} markerEnd={isSel?"url(#sarr-hi)":"url(#sarr)"} style={{cursor:"pointer"}}/>{isSel&&!navDrag&&<><circle cx={fp.x} cy={fp.y} r={6} fill="white" stroke="#1A73E8" strokeWidth={2} onMouseDown={e=>onHandleMD(e,nav.id,"from")} style={{cursor:"grab"}}/><circle cx={tp.x} cy={tp.y} r={6} fill="white" stroke="#1A73E8" strokeWidth={2} onMouseDown={e=>onHandleMD(e,nav.id,"to")} style={{cursor:"grab"}}/></>}</g>);})}
             {/* 2.5. ドラッグ中のプレビュー線 */}
@@ -207,8 +218,7 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
             </g>
           </svg>
           <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}>
-            <Btn small onClick={()=>addView("view")}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> View</span></Btn>
-            <Btn small onClick={()=>addView("composite")}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>dashboard_customize</span> Composite</span></Btn>
+            <Btn small onClick={()=>addView("collection")}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> View</span></Btn>
             <Btn small ghost={!connOn} accent={connOn} onClick={()=>{if(!connOn){setSelId(null);setSelNavId(null);setEditLabel(false);setMultiSel(new Set());multiOffsets.current={};}setConn(connOn?null:"");setConnDrag(null);}}>{connOn?(connHasSrc?"→ select target":"← select source"):<span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>link</span> Connect</span>}</Btn>
             {connOn&&<Btn small ghost onClick={()=>{setConn(null);setConnDrag(null);}}><span className="msi" style={{fontSize:16}}>close</span></Btn>}
           </div>
@@ -218,14 +228,16 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.min(ZOOM_MAX,z*1.25);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>+</button>
           </div>
         </div>
-        {(()=>{if(!selVw||multiSel.size>0)return null;const vw=selVw;const upd=patch=>setModel(m=>({...m,views:m.views.map(s=>s.id===selId?{...s,...patch}:s)}));const del=()=>{setSelId(null);setModel(m=>({...m,views:m.views.filter(s=>s.id!==selId),transitions:m.transitions.filter(n=>n.from!==selId&&n.to!==selId)}));};const objs=vw.objects||[];return(
+        {(()=>{if(!selVw||multiSel.size>0)return null;const vw=selVw;const upd=patch=>setModel(m=>({...m,views:m.views.map(s=>s.id===selId?{...s,...patch}:s)}));const del=()=>{setSelId(null);setModel(m=>({...m,views:m.views.filter(s=>s.id!==selId),transitions:m.transitions.filter(n=>n.from!==selId&&n.to!==selId)}));};const fields=vw.fields||[],verbs=vw.verbs||[];const addField=()=>{const name=prompt("フィールド名を入力");if(name)upd({fields:[...fields,name]});};const removeField=i=>upd({fields:fields.filter((_,idx)=>idx!==i)});const addVerb=()=>{const name=prompt("動詞名を入力");if(name)upd({verbs:[...verbs,name]});};const removeVerb=i=>upd({verbs:verbs.filter((_,idx)=>idx!==i)});return(
           <div style={{width:400,borderLeft:`1px solid ${M3.outlineVar}`,background:M3.surfaceContLow,display:"flex",flexDirection:"column",flexShrink:0}}>
             <div style={{padding:"16px 16px",borderBottom:`1px solid ${M3.outlineVar}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:M3.surface}}><span style={{fontSize:12,fontWeight:500,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px"}}>View</span><button onClick={()=>setSelId(null)} style={{background:"none",border:"none",cursor:"pointer",color:M3.onSurfaceVar}}><span className="msi" style={{fontSize:20}}>close</span></button></div>
             <div style={{flex:1,overflowY:"auto",padding:16}}>
               <div style={{marginBottom:24}}><SLabel>Name</SLabel><Input value={vw.name} onChange={e=>upd({name:e.target.value})} style={{fontSize:16,fontWeight:500}}/></div>
-              <div style={{marginBottom:24}}><SLabel>Type</SLabel><div style={{display:"flex",gap:8}}>{[{v:"view",label:"View",icon:"crop_square"},{v:"composite",label:"Composite",icon:"dashboard"}].map(t=>(<button key={t.v} onClick={()=>upd({type:t.v})} style={{flex:1,padding:"8px 0",fontSize:14,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:(vw.type||"view")===t.v?"none":`1px solid ${M3.outlineVar}`,background:(vw.type||"view")===t.v?"#D3E3FD":"white",color:(vw.type||"view")===t.v?"#041E49":"#9AA0A6",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>{t.icon&&<span className="msi" style={{fontSize:16}}>{t.icon}</span>}{t.label}</button>))}</div></div>
+              <div style={{marginBottom:24}}><SLabel>Object</SLabel><Sel value={vw.objectId||""} onChange={e=>upd({objectId:e.target.value})} style={{width:"100%"}}><option value="">— 選択してください —</option>{model.objects.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</Sel></div>
+              <div style={{marginBottom:24}}><SLabel>Type</SLabel><div style={{display:"flex",gap:8}}>{[{v:"collection",label:"Collection",icon:"view_list"},{v:"single",label:"Single",icon:"article"}].map(t=>(<button key={t.v} onClick={()=>upd({type:t.v})} style={{flex:1,padding:"8px 0",fontSize:14,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:(vw.type||"collection")===t.v?"none":`1px solid ${M3.outlineVar}`,background:(vw.type||"collection")===t.v?"#D3E3FD":"white",color:(vw.type||"collection")===t.v?"#041E49":"#9AA0A6",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}><span className="msi" style={{fontSize:16}}>{t.icon}</span>{t.label}</button>))}</div></div>
+              <div style={{marginBottom:24}}><SLabel>Fields</SLabel>{fields.length===0?<div style={{fontSize:13,color:"#C4C7C5"}}>フィールドなし</div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>{fields.map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:"#F8F9FA",borderRadius:M3.shapeSm}}><span style={{flex:1,fontSize:13,color:"#1A1A1A"}}>{f}</span><button onClick={()=>removeField(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:16}}>close</span></button></div>))}</div>}<button onClick={addField} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"6px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ フィールド追加</button></div>
+              <div style={{marginBottom:24}}><SLabel>Verbs</SLabel>{verbs.length===0?<div style={{fontSize:13,color:"#C4C7C5"}}>動詞なし</div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>{verbs.map((v,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:"#FDF2F8",borderRadius:M3.shapeSm}}><span style={{flex:1,fontSize:13,color:"#7D5260"}}>{v}</span><button onClick={()=>removeVerb(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:16}}>close</span></button></div>))}</div>}<button onClick={addVerb} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"6px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ 動詞追加</button></div>
               <div style={{marginBottom:24}}><SLabel>View Prompt</SLabel><textarea value={vw.prompt||""} onChange={e=>upd({prompt:e.target.value})} placeholder="このビューの実装についてCCへの補足を書く" style={{width:"100%",boxSizing:"border-box",border:`1px solid ${M3.outlineVar}`,borderRadius:M3.shapeSm,background:"white",fontFamily:"inherit",fontSize:14,color:vw.prompt?"#1A1A1A":"#BDC1C6",lineHeight:1.6,padding:"16px 16px",resize:"vertical",minHeight:120,outline:"none"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";e.target.style.boxShadow="0 0 0 3px rgba(26,115,232,.12)";e.target.style.color="#1A1A1A";}} onBlur={e=>{e.target.style.borderColor="";e.target.style.boxShadow="none";if(!e.target.value)e.target.style.color="#BDC1C6";}}/></div>
-              <div style={{marginBottom:24}}><SLabel>Objects</SLabel>{objs.length===0?<div style={{fontSize:13,color:"#C4C7C5"}}>No objects</div>:<div style={{display:"flex",flexDirection:"column",gap:6}}>{objs.map(obj=>{const p=objPalette(model.objects,obj.objectId);return<div key={obj.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 8px",background:p.bg+"18",borderRadius:M3.shapeSm}}><div style={{width:8,height:8,borderRadius:"50%",background:p.bg,flexShrink:0}}/><span style={{fontSize:13,fontWeight:500,color:p.fg}}>{objName(model.objects,obj.objectId)}</span><span style={{fontSize:11,color:M3.onSurface,marginLeft:"auto"}}>{obj.variant}</span></div>;})}</div>}</div>
               <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>onSelectScreen(vw.id)} style={{background:"#D3E3FD",border:"none",color:"#041E49",borderRadius:"var(--md-sys-shape-full)",padding:"8px 24px",fontSize:14,fontWeight:500,cursor:"pointer",fontFamily:"inherit",transition:"box-shadow .15s"}} onMouseEnter={e=>{e.target.style.boxShadow="var(--md-sys-elevation-1)";}} onMouseLeave={e=>{e.target.style.boxShadow="none";}}>Open View</button></div>
             </div>
             <div style={{borderTop:`1px solid ${M3.outlineVar}`,padding:16,display:"flex",justifyContent:"flex-end"}}><Btn danger onClick={del}>Delete view</Btn></div>
@@ -240,65 +252,67 @@ function CollWF({obj,color}){return(<div><table style={{width:"100%",borderColla
 
 function SingleWF({obj,color}){return(<div>{["Name","Status","Date"].map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,height:20}}><div style={{width:64,fontSize:12,lineHeight:"20px",color:"#9AA0A6",textAlign:"right",flexShrink:0}}>{f}</div><div style={{flex:1,display:"flex",alignItems:"center"}}><div style={{height:12,background:"#E8EAED",borderRadius:4,width:`${[72,88,56][i%3]}%`}}/></div></div>))}</div>);}
 
-/* ===== ViewDetailView ===== */
+/* ===== ViewDetailView（新スキーマ: objectId + fields + verbs） ===== */
 function ViewDetailView({screenId,model,setModel,onBack}){
-  const[selObjId,setSelObjId]=useState(null);
-  const[isNewObj,setIsNewObj]=useState(false);
-  const selectObj=useCallback(id=>{setSelObjId(id);setIsNewObj(false);},[]);
   const vw=model.views.find(s=>s.id===screenId);if(!vw)return null;
   const updVw=patch=>setModel(m=>({...m,views:m.views.map(s=>s.id===screenId?{...s,...patch}:s)}));
-  const updObj=obj=>updVw({objects:vw.objects.map(o=>o.id===obj.id?obj:o)});
-  const delObj=id=>{updVw({objects:vw.objects.filter(o=>o.id!==id)});selectObj(null);};
-  useEffect(()=>{const onKey=e=>{if((e.key==='Delete'||e.key==='Backspace')&&selObjId&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){e.preventDefault();delObj(selObjId);}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[selObjId,vw?.objects]);
-  const addObj=()=>{const ent=model.objects[0];if(!ent)return;const obj={id:uid(),objectId:ent.id,variant:"collection",area:"main"};updVw({objects:[...vw.objects,obj]});setSelObjId(obj.id);setIsNewObj(true);};
-  const selObj=vw.objects.find(o=>o.id===selObjId);
-  const byArea={};AREAS.forEach(a=>{byArea[a]=vw.objects.filter(o=>(o.area||"main")===a);});
-  const renderObj=(obj)=>{const p=objPalette(model.objects,obj.objectId),isSel=selObjId===obj.id;return(
-    <div key={obj.id} onClick={()=>selectObj(isSel?null:obj.id)} style={{background:"white",borderRadius:M3.shapeSm,border:`2px solid ${isSel?p.fg:"#DADCE0"}`,boxShadow:isSel?`0 0 0 3px ${p.fg}18`:"var(--md-sys-elevation-1)",cursor:"pointer",overflow:"hidden",flex:1,minWidth:0}}>
-      <div style={{padding:"8px 16px",borderBottom:"1px solid #F5F5F5",display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:8,height:8,borderRadius:"50%",background:p.bg}}/>
-        <span style={{fontSize:14,fontWeight:500,color:"#1A1A1A"}}>{objName(model.objects,obj.objectId)}</span>
-        <span style={{fontSize:12,color:"#9AA0A6",background:"#F5F5F5",padding:"2px 8px",borderRadius:M3.shapeFull}}>{obj.variant}</span>
-      </div>
-      <div style={{padding:"16px 16px"}}>{obj.variant==="collection"?<CollWF obj={obj} color={p.fg}/>:<SingleWF obj={obj} color={p.fg}/>}</div>
-    </div>);};
-  const renderZone=(area,objs,style)=>(
-    <div style={{...style,minHeight:objs.length>0?undefined:48,border:objs.length===0?`2px dashed ${M3.outlineVar}`:"none",borderRadius:M3.shapeSm,display:"flex",flexDirection:"column",gap:16,padding:objs.length===0?8:0,position:"relative"}}>
-      {objs.length===0&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",fontSize:12,color:"#C4C7C5"}}>{AREA_LABELS[area]}</div>}
-      {objs.map(o=>renderObj(o))}
-    </div>
-  );
-  const hasLeft=byArea.left.length>0,hasRight=byArea.right.length>0;
+  const fields=vw.fields||[],verbs=vw.verbs||[];
+  const addField=()=>{const name=prompt("フィールド名を入力");if(name)updVw({fields:[...fields,name]});};
+  const removeField=i=>updVw({fields:fields.filter((_,idx)=>idx!==i)});
+  const addVerb=()=>{const name=prompt("動詞名を入力");if(name)updVw({verbs:[...verbs,name]});};
+  const removeVerb=i=>updVw({verbs:verbs.filter((_,idx)=>idx!==i)});
+  const p=objPalette(model.objects,vw.objectId);
+  const oName=objName(model.objects,vw.objectId);
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",position:"relative"}}>
       <div style={{background:"white",display:"flex",alignItems:"center",padding:"0 8px",height:56,flexShrink:0,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
         <button onClick={()=>onBack()} style={{background:"none",border:"none",cursor:"pointer",color:M3.onSurface,width:48,height:48,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%",padding:0}} onMouseEnter={e=>{e.currentTarget.style.background="#F5F5F5";}} onMouseLeave={e=>{e.currentTarget.style.background="none";}}><span className="msi" style={{fontSize:24}}>arrow_back</span></button>
         <div style={{marginLeft:16}}>
           <span style={{fontSize:22,fontWeight:400,color:M3.onSurface}}>{vw.name}</span>
+          {oName&&<span style={{fontSize:13,color:p.fg,marginLeft:12}}>{oName}</span>}
+          <span style={{fontSize:12,color:"#9AA0A6",marginLeft:8,background:"#F5F5F5",padding:"2px 8px",borderRadius:M3.shapeFull}}>{vw.type||"collection"}</span>
         </div>
-        <div style={{marginLeft:"auto",paddingRight:8}}><Btn small ghost onClick={addObj}>+ Object</Btn></div>
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{flex:1,overflowY:"auto",background:M3.surfaceContLow,padding:24}}>
-          {vw.objects.length===0&&(<div style={{border:`2px dashed ${M3.outlineVar}`,borderRadius:M3.shapeMd,padding:40,textAlign:"center",color:"#9AA0A6",fontSize:14}}>No objects — click + Object to add</div>)}
-          {vw.objects.length>0&&(
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              {(byArea.top.length>0)&&renderZone("top",byArea.top,{})}
-              <div style={{display:"flex",gap:16}}>
-                {hasLeft&&renderZone("left",byArea.left,{width:360,flexShrink:0})}
-                {renderZone("main",byArea.main,{flex:1})}
-                {hasRight&&renderZone("right",byArea.right,{width:360,flexShrink:0})}
-              </div>
-              {(byArea.bottom.length>0)&&renderZone("bottom",byArea.bottom,{})}
+          {/* ワイヤーフレームプレビュー */}
+          <div style={{background:"white",borderRadius:M3.shapeMd,boxShadow:"var(--md-sys-elevation-1)",overflow:"hidden",marginBottom:24}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #F5F5F5",display:"flex",alignItems:"center",gap:8}}>
+              <span className="msi" style={{fontSize:18,color:"#5F6368"}}>{vw.type==="single"?"article":"view_list"}</span>
+              <span style={{fontSize:14,fontWeight:500,color:"#1A1A1A"}}>{vw.name}</span>
+              {oName&&<><div style={{width:6,height:6,borderRadius:"50%",background:p.bg,marginLeft:8}}/><span style={{fontSize:12,color:p.fg}}>{oName}</span></>}
             </div>
-          )}
+            <div style={{padding:"16px 16px"}}>{(vw.type||"collection")==="collection"?<CollWF obj={null} color={p.fg}/>:<SingleWF obj={null} color={p.fg}/>}</div>
+          </div>
+          {/* フィールド一覧 */}
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:12,fontWeight:600,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Fields</div>
+            {fields.length===0&&<div style={{border:`2px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:16,textAlign:"center",color:"#9AA0A6",fontSize:13}}>フィールドなし</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {fields.map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"white",borderRadius:M3.shapeSm,boxShadow:"var(--md-sys-elevation-1)"}}><span style={{flex:1,fontSize:14,color:"#1A1A1A"}}>{f}</span><button onClick={()=>removeField(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:18}}>close</span></button></div>))}
+            </div>
+            <button onClick={addField} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"8px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ フィールド追加</button>
+          </div>
+          {/* 動詞一覧 */}
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:12,fontWeight:600,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Verbs</div>
+            {verbs.length===0&&<div style={{border:`2px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:16,textAlign:"center",color:"#9AA0A6",fontSize:13}}>動詞なし</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {verbs.map((v,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"white",borderRadius:M3.shapeSm,boxShadow:"var(--md-sys-elevation-1)"}}><span style={{flex:1,fontSize:14,color:"#7D5260"}}>{v}</span><button onClick={()=>removeVerb(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:18}}>close</span></button></div>))}
+            </div>
+            <button onClick={addVerb} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"8px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ 動詞追加</button>
+          </div>
         </div>
-        {selObj&&(<div style={{width:400,borderLeft:`1px solid ${M3.outlineVar}`,background:M3.surfaceContLow,display:"flex",flexDirection:"column",flexShrink:0}}><div style={{padding:"12px 16px",borderBottom:`1px solid ${M3.outlineVar}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between",background:M3.surface}}><div><div style={{fontSize:14,fontWeight:600,color:M3.onSurface}}>{objName(model.objects,selObj.objectId)}</div><div style={{fontSize:12,color:M3.onSurfaceVar,marginTop:2}}>{selObj.variant}</div></div><button onClick={()=>selectObj(null)} style={{background:"none",border:"none",cursor:"pointer",color:M3.onSurfaceVar,padding:0,marginTop:2}}><span className="msi" style={{fontSize:20}}>close</span></button></div><div style={{flex:1,overflowY:"auto",padding:16}}>
-          <div style={{marginBottom:16}}><SLabel>Object</SLabel>{isNewObj?<Sel value={selObj.objectId} onChange={e=>updObj({...selObj,objectId:e.target.value})} style={{width:"100%"}}>{model.objects.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</Sel>:<div style={{padding:"8px 12px",fontSize:14,fontWeight:500,color:M3.onSurface,background:M3.surfaceCont,borderRadius:M3.shapeSm}}>{objName(model.objects,selObj.objectId)}</div>}</div>
-          <div style={{marginBottom:16}}><SLabel>Variant</SLabel><div style={{display:"flex",gap:8}}>{VARIANTS.map(v=>(<button key={v} onClick={()=>updObj({...selObj,variant:v})} style={{flex:1,padding:"8px 0",fontSize:14,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:selObj.variant===v?"none":`1px solid ${M3.outline}`,background:selObj.variant===v?"#D3E3FD":M3.surface,color:selObj.variant===v?"#041E49":"#9AA0A6"}}>{v}</button>))}</div></div>
-          <div style={{marginBottom:16}}><SLabel>Area</SLabel><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{AREAS.map(a=>(<button key={a} onClick={()=>updObj({...selObj,area:a})} style={{padding:"8px 16px",fontSize:13,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:(selObj.area||"main")===a?"none":`1px solid ${M3.outlineVar}`,background:(selObj.area||"main")===a?"#D3E3FD":"white",color:(selObj.area||"main")===a?"#041E49":"#9AA0A6"}}>{AREA_LABELS[a]}</button>))}</div></div>
-          <div style={{marginBottom:16}}><SLabel>Object Prompt</SLabel><textarea value={selObj.prompt||""} onChange={e=>updObj({...selObj,prompt:e.target.value})} placeholder="このObjectの実装についての補足" style={{width:"100%",boxSizing:"border-box",border:`1px solid ${M3.outlineVar}`,borderRadius:M3.shapeSm,background:"white",fontFamily:"inherit",fontSize:14,color:selObj.prompt?"#1A1A1A":"#C4C7C5",lineHeight:1.6,padding:"8px 16px",resize:"vertical",minHeight:80,outline:"none"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";e.target.style.boxShadow="0 0 0 3px rgba(26,115,232,.12)";e.target.style.color="#1A1A1A";}} onBlur={e=>{e.target.style.borderColor="";e.target.style.boxShadow="none";if(!e.target.value)e.target.style.color="#C4C7C5";}}/></div>
-        </div><div style={{borderTop:`1px solid ${M3.outlineVar}`,padding:16,display:"flex",justifyContent:"flex-end"}}><Btn danger onClick={e=>{e.stopPropagation();delObj(selObj.id);}}>Delete object</Btn></div></div>)}
+        {/* サイドパネル: ビュー属性の編集 */}
+        <div style={{width:400,borderLeft:`1px solid ${M3.outlineVar}`,background:M3.surfaceContLow,display:"flex",flexDirection:"column",flexShrink:0}}>
+          <div style={{padding:"12px 16px",borderBottom:`1px solid ${M3.outlineVar}`,background:M3.surface}}><span style={{fontSize:12,fontWeight:500,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px"}}>Properties</span></div>
+          <div style={{flex:1,overflowY:"auto",padding:16}}>
+            <div style={{marginBottom:16}}><SLabel>Name</SLabel><Input value={vw.name} onChange={e=>updVw({name:e.target.value})} style={{fontSize:16,fontWeight:500}}/></div>
+            <div style={{marginBottom:16}}><SLabel>Object</SLabel><Sel value={vw.objectId||""} onChange={e=>updVw({objectId:e.target.value})} style={{width:"100%"}}><option value="">— 選択してください —</option>{model.objects.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</Sel></div>
+            <div style={{marginBottom:16}}><SLabel>Type</SLabel><div style={{display:"flex",gap:8}}>{[{v:"collection",label:"Collection",icon:"view_list"},{v:"single",label:"Single",icon:"article"}].map(t=>(<button key={t.v} onClick={()=>updVw({type:t.v})} style={{flex:1,padding:"8px 0",fontSize:14,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:(vw.type||"collection")===t.v?"none":`1px solid ${M3.outlineVar}`,background:(vw.type||"collection")===t.v?"#D3E3FD":"white",color:(vw.type||"collection")===t.v?"#041E49":"#9AA0A6",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}><span className="msi" style={{fontSize:16}}>{t.icon}</span>{t.label}</button>))}</div></div>
+            <div style={{marginBottom:16}}><SLabel>View Prompt</SLabel><textarea value={vw.prompt||""} onChange={e=>updVw({prompt:e.target.value})} placeholder="このビューの実装についてCCへの補足を書く" style={{width:"100%",boxSizing:"border-box",border:`1px solid ${M3.outlineVar}`,borderRadius:M3.shapeSm,background:"white",fontFamily:"inherit",fontSize:14,color:vw.prompt?"#1A1A1A":"#C4C7C5",lineHeight:1.6,padding:"8px 16px",resize:"vertical",minHeight:80,outline:"none"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";e.target.style.boxShadow="0 0 0 3px rgba(26,115,232,.12)";e.target.style.color="#1A1A1A";}} onBlur={e=>{e.target.style.borderColor="";e.target.style.boxShadow="none";if(!e.target.value)e.target.style.color="#C4C7C5";}}/></div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -354,7 +368,7 @@ function App(){
     if(tab==='view'&&!viewScreenId&&clipRef.current.type==='view'){
       const src=clipRef.current.data;
       const newId=uid();
-      setModel(m=>{const names=m.views.map(s=>s.name);const newVw={...JSON.parse(JSON.stringify(src)),id:newId,name:uniqueName(src.name,names),x:(src.x||80)+40,y:(src.y||80)+40,objects:src.objects.map(o=>({...o,id:uid()}))};return{...m,views:[...m.views,newVw]};});
+      setModel(m=>{const names=m.views.map(s=>s.name);const newVw={...JSON.parse(JSON.stringify(src)),id:newId,name:uniqueName(src.name,names),x:(src.x||80)+40,y:(src.y||80)+40,objectId:src.objectId||"",fields:[...(src.fields||[])],verbs:[...(src.verbs||[])]};delete newVw.objects;return{...m,views:[...m.views,newVw]};});
       showToast('Pasted: '+src.name);
       return true;
     }
