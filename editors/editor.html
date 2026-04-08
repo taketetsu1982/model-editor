@@ -257,7 +257,6 @@ function MapView({model,setModel,setModelSilent,onSelChange}){
             <div style={{borderTop:`1px solid ${M3.outlineVar}`,padding:16,display:"flex",justifyContent:"flex-end"}}><Btn danger onClick={del}>Delete view</Btn></div>
           </div>);})()}
       </div>
-      {showActorEdit&&<ActorEditModal actors={model.actors} onSave={handleActorEditSave} onClose={()=>setShowActorEdit(false)}/>}
     </div>
   );
 }
