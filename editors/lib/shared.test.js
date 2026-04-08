@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   uid, uniqueName, edgePt, calcCenterPan, labelWidth,
   objPalette, objColor, objName,
-  CRUD_OPS, OBJ_PALETTE, LABEL_CHAR_W, LABEL_CHAR_W_WIDE, LABEL_MIN_W, LABEL_PAD,
+  OBJ_PALETTE, LABEL_CHAR_W, LABEL_CHAR_W_WIDE, LABEL_MIN_W, LABEL_PAD,
   isWideChar,
 } = require('./shared.js');
 
