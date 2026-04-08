@@ -1,0 +1,8 @@
+{
+  "name": "product-model-editor",
+  "description": "OOUIに基づくプロダクトモデルエディタ。オブジェクトとビューを1つのJSONで統合管理し、ブラウザ上で視覚的に編集できる。",
+  "version": "1.0.0",
+  "author": {
+    "name": "taketetsu1982"
+  }
+}
