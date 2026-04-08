@@ -101,299 +101,27 @@
       "y": 280
     }
   ],
-  "actors": [
-    {
-      "id": "owner",
-      "name": "Owner",
-      "touches": [
-        {
-          "objectId": "workspace",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "own"
-            },
-            {
-              "op": "R",
-              "scope": "own"
-            },
-            {
-              "op": "U",
-              "scope": "own"
-            },
-            {
-              "op": "D",
-              "scope": "own"
-            }
-          ]
-        },
-        {
-          "objectId": "project",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "own"
-            },
-            {
-              "op": "R",
-              "scope": "own"
-            },
-            {
-              "op": "U",
-              "scope": "own"
-            },
-            {
-              "op": "D",
-              "scope": "own"
-            }
-          ]
-        },
-        {
-          "objectId": "task",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "all"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "all"
-            },
-            {
-              "op": "D",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "member",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "all"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "all"
-            },
-            {
-              "op": "D",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "label",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "all"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "all"
-            },
-            {
-              "op": "D",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "comment",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "all"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "all"
-            },
-            {
-              "op": "D",
-              "scope": "all"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "member-actor",
-      "name": "Member",
-      "touches": [
-        {
-          "objectId": "project",
-          "crud": [
-            {
-              "op": "R",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "task",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "all"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "comment",
-          "crud": [
-            {
-              "op": "C",
-              "scope": "own"
-            },
-            {
-              "op": "R",
-              "scope": "all"
-            },
-            {
-              "op": "U",
-              "scope": "own"
-            },
-            {
-              "op": "D",
-              "scope": "own"
-            }
-          ]
-        },
-        {
-          "objectId": "label",
-          "crud": [
-            {
-              "op": "R",
-              "scope": "all"
-            }
-          ]
-        },
-        {
-          "objectId": "member",
-          "crud": [
-            {
-              "op": "R",
-              "scope": "all"
-            }
-          ]
-        }
-      ]
-    }
-  ],
   "views": [
     {
       "id": "owner-dashboard",
       "name": "ダッシュボード",
-      "actorIds": [
-        "owner",
-        "member-actor"
-      ],
       "type": "composite",
       "prompt": "KPI（月次進捗・タスク完了率）をカード形式で上部に表示。プロジェクト別タスク数をグラフで中段に。",
       "objects": [
         {
           "id": "co1",
           "objectId": "project",
-          "variant": "collection",
-          "crud": [
-            "R"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         },
         {
           "id": "co2",
           "objectId": "task",
-          "variant": "collection",
-          "crud": [
-            "R"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         },
         {
           "id": "co3",
           "objectId": "member",
-          "variant": "collection",
-          "crud": [
-            "R"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": -210,
@@ -402,52 +130,13 @@
     {
       "id": "project-list",
       "name": "プロジェクト一覧",
-      "actorIds": [
-        "owner",
-        "member-actor"
-      ],
       "type": "view",
       "prompt": "プロジェクトをカード形式で一覧表示。新規作成ボタン付き。",
       "objects": [
         {
           "id": "o1",
           "objectId": "project",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": 108,
@@ -456,132 +145,23 @@
     {
       "id": "project-detail",
       "name": "プロジェクト詳細",
-      "actorIds": [
-        "owner",
-        "member-actor"
-      ],
       "type": "view",
       "prompt": "タスク一覧をカンバン形式で表示。メンバー一覧サイドパネル付き。",
       "objects": [
         {
           "id": "o2",
           "objectId": "project",
-          "variant": "single",
-          "crud": [
-            "R",
-            "U"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "single"
         },
         {
           "id": "o3",
           "objectId": "task",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "U",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         },
         {
           "id": "o4",
           "objectId": "member",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": -213,
@@ -590,114 +170,23 @@
     {
       "id": "task-detail",
       "name": "タスク詳細",
-      "actorIds": [
-        "owner",
-        "member-actor"
-      ],
       "type": "view",
       "prompt": "タスクの編集フォームとコメントスレッド。ラベル選択はタグピッカー。",
       "objects": [
         {
           "id": "o5",
           "objectId": "task",
-          "variant": "single",
-          "crud": [
-            "R",
-            "U",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "single"
         },
         {
           "id": "o6",
           "objectId": "comment",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         },
         {
           "id": "o7",
           "objectId": "label",
-          "variant": "collection",
-          "crud": [
-            "R"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ],
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": 0,
@@ -706,42 +195,13 @@
     {
       "id": "member-management",
       "name": "メンバー管理",
-      "actorIds": [
-        "owner"
-      ],
       "type": "view",
       "prompt": "ワークスペースのメンバー一覧。招待・削除・ロール変更。",
       "objects": [
         {
           "id": "o11",
           "objectId": "member",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "U",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": -600,
@@ -750,42 +210,13 @@
     {
       "id": "label-management",
       "name": "ラベル管理",
-      "actorIds": [
-        "owner"
-      ],
       "type": "view",
       "prompt": "ラベルの作成・編集・削除。色とテキストを設定。",
       "objects": [
         {
           "id": "o12",
           "objectId": "label",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "U",
-            "D"
-          ],
-          "crudByActor": {
-            "owner": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              },
-              {
-                "op": "D",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": -600,
@@ -794,53 +225,18 @@
     {
       "id": "member-my-tasks",
       "name": "マイタスク",
-      "actorIds": [
-        "member-actor"
-      ],
       "type": "view",
       "prompt": "自分にアサインされたタスクを期限順に表示。",
       "objects": [
         {
           "id": "o8",
           "objectId": "task",
-          "variant": "collection",
-          "crud": [
-            "C",
-            "R",
-            "U"
-          ],
-          "crudByActor": {
-            "member-actor": [
-              {
-                "op": "C",
-                "scope": "all"
-              },
-              {
-                "op": "R",
-                "scope": "all"
-              },
-              {
-                "op": "U",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         },
         {
           "id": "o13",
           "objectId": "member",
-          "variant": "collection",
-          "crud": [
-            "R"
-          ],
-          "crudByActor": {
-            "member-actor": [
-              {
-                "op": "R",
-                "scope": "all"
-              }
-            ]
-          }
+          "variant": "collection"
         }
       ],
       "x": 376,
