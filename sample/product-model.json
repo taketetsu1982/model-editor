@@ -1,5 +1,5 @@
 {
-  "entities": [
+  "objects": [
     {
       "id": "workspace",
       "name": "ワークスペース",
@@ -107,7 +107,7 @@
       "name": "Owner",
       "touches": [
         {
-          "entityId": "workspace",
+          "objectId": "workspace",
           "crud": [
             {
               "op": "C",
@@ -128,7 +128,7 @@
           ]
         },
         {
-          "entityId": "project",
+          "objectId": "project",
           "crud": [
             {
               "op": "C",
@@ -149,7 +149,7 @@
           ]
         },
         {
-          "entityId": "task",
+          "objectId": "task",
           "crud": [
             {
               "op": "C",
@@ -170,7 +170,7 @@
           ]
         },
         {
-          "entityId": "member",
+          "objectId": "member",
           "crud": [
             {
               "op": "C",
@@ -191,7 +191,7 @@
           ]
         },
         {
-          "entityId": "label",
+          "objectId": "label",
           "crud": [
             {
               "op": "C",
@@ -212,7 +212,7 @@
           ]
         },
         {
-          "entityId": "comment",
+          "objectId": "comment",
           "crud": [
             {
               "op": "C",
@@ -239,7 +239,7 @@
       "name": "Member",
       "touches": [
         {
-          "entityId": "project",
+          "objectId": "project",
           "crud": [
             {
               "op": "R",
@@ -248,7 +248,7 @@
           ]
         },
         {
-          "entityId": "task",
+          "objectId": "task",
           "crud": [
             {
               "op": "C",
@@ -265,7 +265,7 @@
           ]
         },
         {
-          "entityId": "comment",
+          "objectId": "comment",
           "crud": [
             {
               "op": "C",
@@ -286,7 +286,7 @@
           ]
         },
         {
-          "entityId": "label",
+          "objectId": "label",
           "crud": [
             {
               "op": "R",
@@ -295,7 +295,7 @@
           ]
         },
         {
-          "entityId": "member",
+          "objectId": "member",
           "crud": [
             {
               "op": "R",
@@ -306,7 +306,7 @@
       ]
     }
   ],
-  "screens": [
+  "views": [
     {
       "id": "owner-dashboard",
       "name": "ダッシュボード",
@@ -319,7 +319,7 @@
       "objects": [
         {
           "id": "co1",
-          "entityId": "project",
+          "objectId": "project",
           "variant": "collection",
           "crud": [
             "R"
@@ -353,7 +353,7 @@
         },
         {
           "id": "co2",
-          "entityId": "task",
+          "objectId": "task",
           "variant": "collection",
           "crud": [
             "R"
@@ -375,7 +375,7 @@
         },
         {
           "id": "co3",
-          "entityId": "member",
+          "objectId": "member",
           "variant": "collection",
           "crud": [
             "R"
@@ -406,12 +406,12 @@
         "owner",
         "member-actor"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "プロジェクトをカード形式で一覧表示。新規作成ボタン付き。",
       "objects": [
         {
           "id": "o1",
-          "entityId": "project",
+          "objectId": "project",
           "variant": "collection",
           "crud": [
             "C",
@@ -460,12 +460,12 @@
         "owner",
         "member-actor"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "タスク一覧をカンバン形式で表示。メンバー一覧サイドパネル付き。",
       "objects": [
         {
           "id": "o2",
-          "entityId": "project",
+          "objectId": "project",
           "variant": "single",
           "crud": [
             "R",
@@ -496,7 +496,7 @@
         },
         {
           "id": "o3",
-          "entityId": "task",
+          "objectId": "task",
           "variant": "collection",
           "crud": [
             "C",
@@ -545,7 +545,7 @@
         },
         {
           "id": "o4",
-          "entityId": "member",
+          "objectId": "member",
           "variant": "collection",
           "crud": [
             "C",
@@ -594,12 +594,12 @@
         "owner",
         "member-actor"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "タスクの編集フォームとコメントスレッド。ラベル選択はタグピッカー。",
       "objects": [
         {
           "id": "o5",
-          "entityId": "task",
+          "objectId": "task",
           "variant": "single",
           "crud": [
             "R",
@@ -639,7 +639,7 @@
         },
         {
           "id": "o6",
-          "entityId": "comment",
+          "objectId": "comment",
           "variant": "collection",
           "crud": [
             "C",
@@ -679,7 +679,7 @@
         },
         {
           "id": "o7",
-          "entityId": "label",
+          "objectId": "label",
           "variant": "collection",
           "crud": [
             "R"
@@ -709,12 +709,12 @@
       "actorIds": [
         "owner"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "ワークスペースのメンバー一覧。招待・削除・ロール変更。",
       "objects": [
         {
           "id": "o11",
-          "entityId": "member",
+          "objectId": "member",
           "variant": "collection",
           "crud": [
             "C",
@@ -753,12 +753,12 @@
       "actorIds": [
         "owner"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "ラベルの作成・編集・削除。色とテキストを設定。",
       "objects": [
         {
           "id": "o12",
-          "entityId": "label",
+          "objectId": "label",
           "variant": "collection",
           "crud": [
             "C",
@@ -797,12 +797,12 @@
       "actorIds": [
         "member-actor"
       ],
-      "type": "screen",
+      "type": "view",
       "prompt": "自分にアサインされたタスクを期限順に表示。",
       "objects": [
         {
           "id": "o8",
-          "entityId": "task",
+          "objectId": "task",
           "variant": "collection",
           "crud": [
             "C",
@@ -828,7 +828,7 @@
         },
         {
           "id": "o13",
-          "entityId": "member",
+          "objectId": "member",
           "variant": "collection",
           "crud": [
             "R"

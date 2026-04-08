@@ -1,4 +1,4 @@
-// docs/reqs/lib/shared.js — 両エディタ共通の純粋関数・定数
+// editors/lib/shared.js — 両エディタ共通の純粋関数・定数
 (function(exports) {
 
   // --- 定数 ---
@@ -6,7 +6,7 @@
   exports.CRUD_COLOR = { C: "#1E8E3E", R: "#1A73E8", U: "#E37400", D: "#D93025" };
   exports.CRUD_BG = { C: "#E6F4EA", R: "#E8F0FE", U: "#FEF7E0", D: "#FCE8E6" };
 
-  exports.ENT_PALETTE = [
+  exports.OBJ_PALETTE = [
     { bg: "#AECBFA", fg: "#174EA6" },
     { bg: "#FDD663", fg: "#7A6200" },
     { bg: "#A8DAB5", fg: "#137333" },
@@ -83,19 +83,19 @@
     return Math.max(w, exports.LABEL_MIN_W) + exports.LABEL_PAD;
   };
 
-  // エンティティのカラーパレット取得（entities配列とidを受け取る純粋関数）
-  exports.entPalette = function(entities, id) {
-    return exports.ENT_PALETTE[Math.max(0, entities.findIndex(function(e) { return e.id === id; })) % exports.ENT_PALETTE.length];
+  // オブジェクトのカラーパレット取得（objects配列とidを受け取る純粋関数）
+  exports.objPalette = function(objects, id) {
+    return exports.OBJ_PALETTE[Math.max(0, objects.findIndex(function(e) { return e.id === id; })) % exports.OBJ_PALETTE.length];
   };
 
-  // エンティティの色取得
-  exports.entColor = function(entities, id) {
-    return exports.entPalette(entities, id).fg;
+  // オブジェクトの色取得
+  exports.objColor = function(objects, id) {
+    return exports.objPalette(objects, id).fg;
   };
 
-  // エンティティ名取得
-  exports.entName = function(entities, id) {
-    var ent = entities.find(function(e) { return e.id === id; });
+  // オブジェクト名取得
+  exports.objName = function(objects, id) {
+    var ent = objects.find(function(e) { return e.id === id; });
     return ent ? ent.name : id;
   };
 
