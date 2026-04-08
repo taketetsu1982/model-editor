@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { ensurePositions, circled, CIRCLED } = require('./model-logic.js');
+const { ensurePositions, circled, CIRCLED } = require('./object-logic.js');
 
 const DEFAULT_CONFIG = {
   cols: 3, gapX: 360, gapY: 240, padX: 80, padY: 80,
@@ -13,14 +13,14 @@ describe('ensurePositions', () => {
     expect(ensurePositions(undefined, DEFAULT_CONFIG)).toBe(undefined);
   });
 
-  it('entitiesがない場合はそのまま返す', () => {
+  it('objectsがない場合はそのまま返す', () => {
     const data = { actors: [] };
     expect(ensurePositions(data, DEFAULT_CONFIG)).toBe(data);
   });
 
-  it('x/yが未定義のエンティティにグリッド位置を設定する', () => {
+  it('x/yが未定義のオブジェクトにグリッド位置を設定する', () => {
     const data = {
-      entities: [
+      objects: [
         { id: 'a', name: 'A' },
         { id: 'b', name: 'B' },
         { id: 'c', name: 'C' },
@@ -28,20 +28,20 @@ describe('ensurePositions', () => {
       ],
     };
     ensurePositions(data, DEFAULT_CONFIG);
-    expect(data.entities[0]).toMatchObject({ x: 80, y: 80 });
-    expect(data.entities[1]).toMatchObject({ x: 440, y: 80 });
-    expect(data.entities[2]).toMatchObject({ x: 800, y: 80 });
-    expect(data.entities[3]).toMatchObject({ x: 80, y: 320 });
+    expect(data.objects[0]).toMatchObject({ x: 80, y: 80 });
+    expect(data.objects[1]).toMatchObject({ x: 440, y: 80 });
+    expect(data.objects[2]).toMatchObject({ x: 800, y: 80 });
+    expect(data.objects[3]).toMatchObject({ x: 80, y: 320 });
   });
 
-  it('既にx/yがあるエンティティは上書きしない', () => {
+  it('既にx/yがあるオブジェクトは上書きしない', () => {
     const data = {
-      entities: [
+      objects: [
         { id: 'a', name: 'A', x: 100, y: 200 },
       ],
     };
     ensurePositions(data, DEFAULT_CONFIG);
-    expect(data.entities[0]).toMatchObject({ x: 100, y: 200 });
+    expect(data.objects[0]).toMatchObject({ x: 100, y: 200 });
   });
 });
 

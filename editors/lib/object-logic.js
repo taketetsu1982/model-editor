@@ -1,15 +1,15 @@
-// docs/reqs/lib/model-logic.js — Model Editor固有の純粋関数
+// docs/reqs/lib/object-logic.js — Object Editor固有の純粋関数
 (function(exports) {
 
-  // エンティティ初期位置設定
+  // オブジェクト初期位置設定
   exports.ensurePositions = function(data, config) {
-    if (!data || !data.entities) return data;
+    if (!data || !data.objects) return data;
     var cols = config.cols, gapX = config.gapX, gapY = config.gapY;
     var padX = config.padX, padY = config.padY;
-    data.entities.forEach(function(ent, i) {
-      if (ent.x === undefined || ent.y === undefined) {
-        ent.x = padX + (i % cols) * gapX;
-        ent.y = padY + Math.floor(i / cols) * gapY;
+    data.objects.forEach(function(obj, i) {
+      if (obj.x === undefined || obj.y === undefined) {
+        obj.x = padX + (i % cols) * gapX;
+        obj.y = padY + Math.floor(i / cols) * gapY;
       }
     });
     return data;

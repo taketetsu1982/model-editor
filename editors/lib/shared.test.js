@@ -3,8 +3,8 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
   uid, uniqueName, edgePt, calcCenterPan, labelWidth,
-  entPalette, entColor, entName,
-  CRUD_OPS, ENT_PALETTE, LABEL_CHAR_W, LABEL_CHAR_W_WIDE, LABEL_MIN_W, LABEL_PAD,
+  objPalette, objColor, objName,
+  CRUD_OPS, OBJ_PALETTE, LABEL_CHAR_W, LABEL_CHAR_W_WIDE, LABEL_MIN_W, LABEL_PAD,
   isWideChar,
 } = require('./shared.js');
 
@@ -157,45 +157,45 @@ describe('isWideChar', () => {
   });
 });
 
-describe('entPalette', () => {
-  const entities = [
+describe('objPalette', () => {
+  const objects = [
     { id: 'a', name: 'A' },
     { id: 'b', name: 'B' },
     { id: 'c', name: 'C' },
   ];
 
   it('インデックスに対応するパレット色を返す', () => {
-    expect(entPalette(entities, 'a')).toEqual(ENT_PALETTE[0]);
-    expect(entPalette(entities, 'b')).toEqual(ENT_PALETTE[1]);
-    expect(entPalette(entities, 'c')).toEqual(ENT_PALETTE[2]);
+    expect(objPalette(objects, 'a')).toEqual(OBJ_PALETTE[0]);
+    expect(objPalette(objects, 'b')).toEqual(OBJ_PALETTE[1]);
+    expect(objPalette(objects, 'c')).toEqual(OBJ_PALETTE[2]);
   });
 
   it('存在しないIDではインデックス0のパレットを返す', () => {
-    expect(entPalette(entities, 'unknown')).toEqual(ENT_PALETTE[0]);
+    expect(objPalette(objects, 'unknown')).toEqual(OBJ_PALETTE[0]);
   });
 
   it('パレット数を超えるとラップアラウンドする', () => {
     const many = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, name: `E${i}` }));
-    expect(entPalette(many, 'e8')).toEqual(ENT_PALETTE[0]);
-    expect(entPalette(many, 'e9')).toEqual(ENT_PALETTE[1]);
+    expect(objPalette(many, 'e8')).toEqual(OBJ_PALETTE[0]);
+    expect(objPalette(many, 'e9')).toEqual(OBJ_PALETTE[1]);
   });
 });
 
-describe('entColor', () => {
-  it('エンティティの前景色を返す', () => {
-    const entities = [{ id: 'x', name: 'X' }];
-    expect(entColor(entities, 'x')).toBe(ENT_PALETTE[0].fg);
+describe('objColor', () => {
+  it('オブジェクトの前景色を返す', () => {
+    const objects = [{ id: 'x', name: 'X' }];
+    expect(objColor(objects, 'x')).toBe(OBJ_PALETTE[0].fg);
   });
 });
 
-describe('entName', () => {
-  const entities = [{ id: 'task', name: 'タスク' }];
+describe('objName', () => {
+  const objects = [{ id: 'task', name: 'タスク' }];
 
-  it('エンティティ名を返す', () => {
-    expect(entName(entities, 'task')).toBe('タスク');
+  it('オブジェクト名を返す', () => {
+    expect(objName(objects, 'task')).toBe('タスク');
   });
 
   it('存在しないIDではIDそのものを返す', () => {
-    expect(entName(entities, 'unknown')).toBe('unknown');
+    expect(objName(objects, 'unknown')).toBe('unknown');
   });
 });
