@@ -105,7 +105,6 @@ const VIEW_TYPES=["collection","single"];
 const TYPE_LABEL={collection:"Collection",single:"Single"};
 // ビューの表示名: "オブジェクト名 Collection" 等
 const viewLabel=(vw,objs)=>{const on=objName(objs,vw.objectId);const tl=TYPE_LABEL[vw.type]||vw.type;return on+" "+tl;};
-const PH_ROWS=[[72,55,80],[64,80,58],[80,62,70]];
 
 const EMPTY={objects:[],views:[],transitions:[]};
 function ensurePositions(data){return _ensurePositions(data,{cols:OBJ_GRID_COLS,gapX:OBJ_GRID_GAP_X,gapY:OBJ_GRID_GAP_Y,padX:OBJ_GRID_PAD_X,padY:OBJ_GRID_PAD_Y});}
@@ -174,7 +173,7 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
 }
 
 /* ===== MapView ===== */
-function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
+function MapView({model,setModel,setModelSilent,onSelChange}){
   const[selNavId,setSelNavId]=useState(null),[selId,setSelId]=useState(null),[drag,setDrag]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[navDrag,setNavDrag]=useState(null),[editLabel,setEditLabel]=useState(false);
   const[multiSel,setMultiSel]=useState(new Set());
   const selVw=selId?model.views.find(s=>s.id===selId):null;
@@ -210,7 +209,7 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
             <rect width="100%" height="100%" fill="url(#sdots)" data-bg="1" onMouseDown={onBgMD}/>
             <g transform={`scale(${zoom}) translate(${-pan.x},${-pan.y})`}>
             {/* 1. ビューカード（fields + verbs） */}
-            {visVw.map(vw=>{const fields=vw.fields||[],verbs=vw.verbs||[],isConn=conn===vw.id,isSel=selId===vw.id||multiSel.has(vw.id);const hasContent=fields.length>0||verbs.length>0;const cardH=SC_HEADER_H+(hasContent?8:40)+fields.length*SC_OBJ_ROW_H+(verbs.length>0?verbs.length*SC_OBJ_ROW_H+8:0)+8;const p=objPalette(model.objects,vw.objectId);const dBg="white",dHdr=p.bg,dTxt=p.fg,dIcon=p.fg,dBorder=isConn?"#E37400":isSel?p.fg:p.bg,dBorderW=(isConn||isSel)?3:1.5;const typeIcon=vw.type==="single"?"article":"view_list";const fieldStartY=SC_OBJ_START_Y;const verbStartY=fieldStartY+fields.length*SC_OBJ_ROW_H+(verbs.length>0?4:0);return(<g key={vw.id} transform={`translate(${vw.x},${vw.y})`} onMouseDown={e=>onBoxMD(e,vw.id)} onDoubleClick={e=>{e.stopPropagation();onSelectScreen(vw.id);}} style={{cursor:connOn?"pointer":"grab"}}><rect x={1} y={2} width={SW} height={cardH} rx={14} fill="rgba(0,0,0,0.04)"/><rect width={SW} height={cardH} rx={14} fill={dBg}/><clipPath id={`clip-${vw.id}`}><rect width={SW} height={cardH} rx={14}/></clipPath><g clipPath={`url(#clip-${vw.id})`}><rect width={SW} height={SC_HEADER_H} fill={dHdr}/><line x1={0} y1={SC_HEADER_H} x2={SW} y2={SC_HEADER_H} stroke="#E0E0E0" strokeWidth="1"/><foreignObject x={0} y={0} width={SW} height={SC_HEADER_H}><div style={{display:"flex",alignItems:"center",gap:4,padding:"0 12px",height:SC_HEADER_H,boxSizing:"border-box"}}><span className="msi" style={{fontSize:18,color:dIcon}}>{typeIcon}</span><span style={{fontSize:14,fontWeight:500,color:dTxt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{viewLabel(vw,model.objects)}</span></div></foreignObject>{fields.map((f,fi)=>(<g key={`f-${fi}`} transform={`translate(0,${fieldStartY+fi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#5F6368" fontFamily="inherit">{f}</text></g>))}{verbs.length>0&&<line x1={SC_OBJ_PAD_X} y1={verbStartY-2} x2={SW-SC_OBJ_PAD_X} y2={verbStartY-2} stroke="#E0E0E0" strokeWidth="1" strokeDasharray="4 2"/>}{verbs.map((v,vi)=>(<g key={`v-${vi}`} transform={`translate(0,${verbStartY+vi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#7D5260" fontFamily="inherit">{v}</text></g>))}</g><rect width={SW} height={cardH} rx={14} fill="none" stroke={dBorder} strokeWidth={dBorderW}/></g>);})}
+            {visVw.map(vw=>{const fields=vw.fields||[],verbs=vw.verbs||[],isConn=conn===vw.id,isSel=selId===vw.id||multiSel.has(vw.id);const hasContent=fields.length>0||verbs.length>0;const cardH=SC_HEADER_H+(hasContent?8:40)+fields.length*SC_OBJ_ROW_H+(verbs.length>0?verbs.length*SC_OBJ_ROW_H+8:0)+8;const p=objPalette(model.objects,vw.objectId);const dBg="white",dHdr=p.bg,dTxt=p.fg,dIcon=p.fg,dBorder=isConn?"#E37400":isSel?p.fg:p.bg,dBorderW=(isConn||isSel)?3:1.5;const typeIcon=vw.type==="single"?"article":"view_list";const fieldStartY=SC_OBJ_START_Y;const verbStartY=fieldStartY+fields.length*SC_OBJ_ROW_H+(verbs.length>0?4:0);return(<g key={vw.id} transform={`translate(${vw.x},${vw.y})`} onMouseDown={e=>onBoxMD(e,vw.id)} style={{cursor:connOn?"pointer":"grab"}}><rect x={1} y={2} width={SW} height={cardH} rx={14} fill="rgba(0,0,0,0.04)"/><rect width={SW} height={cardH} rx={14} fill={dBg}/><clipPath id={`clip-${vw.id}`}><rect width={SW} height={cardH} rx={14}/></clipPath><g clipPath={`url(#clip-${vw.id})`}><rect width={SW} height={SC_HEADER_H} fill={dHdr}/><line x1={0} y1={SC_HEADER_H} x2={SW} y2={SC_HEADER_H} stroke="#E0E0E0" strokeWidth="1"/><foreignObject x={0} y={0} width={SW} height={SC_HEADER_H}><div style={{display:"flex",alignItems:"center",gap:4,padding:"0 12px",height:SC_HEADER_H,boxSizing:"border-box"}}><span className="msi" style={{fontSize:18,color:dIcon}}>{typeIcon}</span><span style={{fontSize:14,fontWeight:500,color:dTxt,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{viewLabel(vw,model.objects)}</span></div></foreignObject>{fields.map((f,fi)=>(<g key={`f-${fi}`} transform={`translate(0,${fieldStartY+fi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#5F6368" fontFamily="inherit">{f}</text></g>))}{verbs.length>0&&<line x1={SC_OBJ_PAD_X} y1={verbStartY-2} x2={SW-SC_OBJ_PAD_X} y2={verbStartY-2} stroke="#E0E0E0" strokeWidth="1" strokeDasharray="4 2"/>}{verbs.map((v,vi)=>(<g key={`v-${vi}`} transform={`translate(0,${verbStartY+vi*SC_OBJ_ROW_H})`}><text x={SC_OBJ_PAD_X+8} y={14} fontSize={11} fill="#7D5260" fontFamily="inherit">{v}</text></g>))}</g><rect width={SW} height={cardH} rx={14} fill="none" stroke={dBorder} strokeWidth={dBorderW}/></g>);})}
             {/* 2. ナビ線 */}
             {visNav.map(nav=>{const src=findNode(nav.from),tgt=findNode(nav.to);if(!src||!tgt)return null;const fp=edgePt(src.x,src.y,SW,src.h,tgt.x+SW/2,tgt.y+tgt.h/2),tp=edgePt(tgt.x,tgt.y,SW,tgt.h,src.x+SW/2,src.y+src.h/2),isSel=selNavId===nav.id,col=isSel?"#1A73E8":"#9AA0A6";return(<g key={`nl-${nav.id}`} onClick={e=>{e.stopPropagation();setMultiSel(new Set());multiOffsets.current={};setSelNavId(isSel?null:nav.id);setSelId(null);setEditLabel(false);}}><line x1={fp.x} y1={fp.y} x2={tp.x} y2={tp.y} stroke="transparent" strokeWidth={12} style={{cursor:"pointer"}}/><line x1={fp.x} y1={fp.y} x2={tp.x} y2={tp.y} stroke={col} strokeWidth={isSel?2:1.5} markerEnd={isSel?"url(#sarr-hi)":"url(#sarr)"} style={{cursor:"pointer"}}/>{isSel&&!navDrag&&<><circle cx={fp.x} cy={fp.y} r={6} fill="white" stroke="#1A73E8" strokeWidth={2} onMouseDown={e=>onHandleMD(e,nav.id,"from")} style={{cursor:"grab"}}/><circle cx={tp.x} cy={tp.y} r={6} fill="white" stroke="#1A73E8" strokeWidth={2} onMouseDown={e=>onHandleMD(e,nav.id,"to")} style={{cursor:"grab"}}/></>}</g>);})}
             {/* 2.5. ドラッグ中のプレビュー線 */}
@@ -241,80 +240,9 @@ function MapView({model,setModel,setModelSilent,onSelectScreen,onSelChange}){
               <div style={{marginBottom:24}}><SLabel>Fields</SLabel>{fields.length===0?<div style={{fontSize:13,color:"#C4C7C5"}}>フィールドなし</div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>{fields.map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:"#F8F9FA",borderRadius:M3.shapeSm}}><span style={{flex:1,fontSize:13,color:"#1A1A1A"}}>{f}</span><button onClick={()=>removeField(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:16}}>close</span></button></div>))}</div>}<button onClick={addField} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"6px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ フィールド追加</button></div>
               <div style={{marginBottom:24}}><SLabel>Verbs</SLabel>{verbs.length===0?<div style={{fontSize:13,color:"#C4C7C5"}}>動詞なし</div>:<div style={{display:"flex",flexDirection:"column",gap:4}}>{verbs.map((v,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",background:"#FDF2F8",borderRadius:M3.shapeSm}}><span style={{flex:1,fontSize:13,color:"#7D5260"}}>{v}</span><button onClick={()=>removeVerb(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:16}}>close</span></button></div>))}</div>}<button onClick={addVerb} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"6px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ 動詞追加</button></div>
               <div style={{marginBottom:24}}><SLabel>View Prompt</SLabel><textarea value={vw.prompt||""} onChange={e=>upd({prompt:e.target.value})} placeholder="このビューの実装についてCCへの補足を書く" style={{width:"100%",boxSizing:"border-box",border:`1px solid ${M3.outlineVar}`,borderRadius:M3.shapeSm,background:"white",fontFamily:"inherit",fontSize:14,color:vw.prompt?"#1A1A1A":"#BDC1C6",lineHeight:1.6,padding:"16px 16px",resize:"vertical",minHeight:120,outline:"none"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";e.target.style.boxShadow="0 0 0 3px rgba(26,115,232,.12)";e.target.style.color="#1A1A1A";}} onBlur={e=>{e.target.style.borderColor="";e.target.style.boxShadow="none";if(!e.target.value)e.target.style.color="#BDC1C6";}}/></div>
-              <div style={{display:"flex",justifyContent:"flex-end"}}><button onClick={()=>onSelectScreen(vw.id)} style={{background:"#D3E3FD",border:"none",color:"#041E49",borderRadius:"var(--md-sys-shape-full)",padding:"8px 24px",fontSize:14,fontWeight:500,cursor:"pointer",fontFamily:"inherit",transition:"box-shadow .15s"}} onMouseEnter={e=>{e.target.style.boxShadow="var(--md-sys-elevation-1)";}} onMouseLeave={e=>{e.target.style.boxShadow="none";}}>Open View</button></div>
             </div>
             <div style={{borderTop:`1px solid ${M3.outlineVar}`,padding:16,display:"flex",justifyContent:"flex-end"}}><Btn danger onClick={del}>Delete view</Btn></div>
           </div>);})()}
-      </div>
-    </div>
-  );
-}
-
-/* ===== CollWF / SingleWF（ビュー詳細用ワイヤーフレーム） ===== */
-function CollWF({obj,color}){return(<div><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{["Name","Status","Date"].map(h=>(<th key={h} style={{padding:"8px 8px",fontSize:11,color:"#5F6368",textAlign:"left",fontWeight:500,background:"#FAFAFA",borderBottom:`1px solid ${M3.outlineVar}`}}>{h}</th>))}</tr></thead><tbody>{PH_ROWS.map((ws,ri)=>(<tr key={ri} style={{borderBottom:"1px solid #FAFAFA"}}>{ws.map((w,ci)=>(<td key={ci} style={{padding:"8px 8px"}}><div style={{height:10,background:"#E0E0E0",borderRadius:5,width:`${w}%`}}/></td>))}</tr>))}</tbody></table></div>);}
-
-function SingleWF({obj,color}){return(<div>{["Name","Status","Date"].map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,height:20}}><div style={{width:64,fontSize:12,lineHeight:"20px",color:"#9AA0A6",textAlign:"right",flexShrink:0}}>{f}</div><div style={{flex:1,display:"flex",alignItems:"center"}}><div style={{height:12,background:"#E8EAED",borderRadius:4,width:`${[72,88,56][i%3]}%`}}/></div></div>))}</div>);}
-
-/* ===== ViewDetailView（新スキーマ: objectId + fields + verbs） ===== */
-function ViewDetailView({screenId,model,setModel,onBack}){
-  const vw=model.views.find(s=>s.id===screenId);if(!vw)return null;
-  const updVw=patch=>setModel(m=>({...m,views:m.views.map(s=>s.id===screenId?{...s,...patch}:s)}));
-  const fields=vw.fields||[],verbs=vw.verbs||[];
-  const addField=()=>{const name=prompt("フィールド名を入力");if(name)updVw({fields:[...fields,name]});};
-  const removeField=i=>updVw({fields:fields.filter((_,idx)=>idx!==i)});
-  const addVerb=()=>{const name=prompt("動詞名を入力");if(name)updVw({verbs:[...verbs,name]});};
-  const removeVerb=i=>updVw({verbs:verbs.filter((_,idx)=>idx!==i)});
-  const p=objPalette(model.objects,vw.objectId);
-  const oName=objName(model.objects,vw.objectId);
-  return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",position:"relative"}}>
-      <div style={{background:"white",display:"flex",alignItems:"center",padding:"0 8px",height:56,flexShrink:0,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
-        <button onClick={()=>onBack()} style={{background:"none",border:"none",cursor:"pointer",color:M3.onSurface,width:48,height:48,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"50%",padding:0}} onMouseEnter={e=>{e.currentTarget.style.background="#F5F5F5";}} onMouseLeave={e=>{e.currentTarget.style.background="none";}}><span className="msi" style={{fontSize:24}}>arrow_back</span></button>
-        <div style={{marginLeft:16}}>
-          <span style={{fontSize:22,fontWeight:400,color:M3.onSurface}}>{viewLabel(vw,model.objects)}</span>
-          {oName&&<span style={{fontSize:13,color:p.fg,marginLeft:12}}>{oName}</span>}
-          <span style={{fontSize:12,color:"#9AA0A6",marginLeft:8,background:"#F5F5F5",padding:"2px 8px",borderRadius:M3.shapeFull}}>{vw.type||"collection"}</span>
-        </div>
-      </div>
-      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
-        <div style={{flex:1,overflowY:"auto",background:M3.surfaceContLow,padding:24}}>
-          {/* ワイヤーフレームプレビュー */}
-          <div style={{background:"white",borderRadius:M3.shapeMd,boxShadow:"var(--md-sys-elevation-1)",overflow:"hidden",marginBottom:24}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #F5F5F5",display:"flex",alignItems:"center",gap:8}}>
-              <span className="msi" style={{fontSize:18,color:"#5F6368"}}>{vw.type==="single"?"article":"view_list"}</span>
-              <span style={{fontSize:14,fontWeight:500,color:"#1A1A1A"}}>{viewLabel(vw,model.objects)}</span>
-            </div>
-            <div style={{padding:"16px 16px"}}>{(vw.type||"collection")==="collection"?<CollWF obj={null} color={p.fg}/>:<SingleWF obj={null} color={p.fg}/>}</div>
-          </div>
-          {/* フィールド一覧 */}
-          <div style={{marginBottom:24}}>
-            <div style={{fontSize:12,fontWeight:600,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Fields</div>
-            {fields.length===0&&<div style={{border:`2px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:16,textAlign:"center",color:"#9AA0A6",fontSize:13}}>フィールドなし</div>}
-            <div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {fields.map((f,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"white",borderRadius:M3.shapeSm,boxShadow:"var(--md-sys-elevation-1)"}}><span style={{flex:1,fontSize:14,color:"#1A1A1A"}}>{f}</span><button onClick={()=>removeField(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:18}}>close</span></button></div>))}
-            </div>
-            <button onClick={addField} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"8px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ フィールド追加</button>
-          </div>
-          {/* 動詞一覧 */}
-          <div style={{marginBottom:24}}>
-            <div style={{fontSize:12,fontWeight:600,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Verbs</div>
-            {verbs.length===0&&<div style={{border:`2px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:16,textAlign:"center",color:"#9AA0A6",fontSize:13}}>動詞なし</div>}
-            <div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {verbs.map((v,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"white",borderRadius:M3.shapeSm,boxShadow:"var(--md-sys-elevation-1)"}}><span style={{flex:1,fontSize:14,color:"#7D5260"}}>{v}</span><button onClick={()=>removeVerb(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#9AA0A6",padding:0,display:"flex"}}><span className="msi" style={{fontSize:18}}>close</span></button></div>))}
-            </div>
-            <button onClick={addVerb} style={{marginTop:8,background:"none",border:`1px dashed ${M3.outlineVar}`,borderRadius:M3.shapeSm,padding:"8px 12px",fontSize:13,color:"#5F6368",cursor:"pointer",fontFamily:"inherit",width:"100%"}}>+ 動詞追加</button>
-          </div>
-        </div>
-        {/* サイドパネル: ビュー属性の編集 */}
-        <div style={{width:400,borderLeft:`1px solid ${M3.outlineVar}`,background:M3.surfaceContLow,display:"flex",flexDirection:"column",flexShrink:0}}>
-          <div style={{padding:"12px 16px",borderBottom:`1px solid ${M3.outlineVar}`,background:M3.surface}}><span style={{fontSize:12,fontWeight:500,color:M3.onSurfaceVar,textTransform:"uppercase",letterSpacing:"0.5px"}}>Properties</span></div>
-          <div style={{flex:1,overflowY:"auto",padding:16}}>
-            <div style={{marginBottom:16,fontSize:16,fontWeight:500,color:M3.onSurface}}>{viewLabel(vw,model.objects)}</div>
-            <div style={{marginBottom:16}}><SLabel>Object</SLabel><Sel value={vw.objectId||""} onChange={e=>updVw({objectId:e.target.value})} style={{width:"100%"}}><option value="">— 選択してください —</option>{model.objects.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</Sel></div>
-            <div style={{marginBottom:16}}><SLabel>Type</SLabel><div style={{display:"flex",gap:8}}>{[{v:"collection",label:"Collection",icon:"view_list"},{v:"single",label:"Single",icon:"article"}].map(t=>(<button key={t.v} onClick={()=>updVw({type:t.v})} style={{flex:1,padding:"8px 0",fontSize:14,fontWeight:500,borderRadius:M3.shapeFull,cursor:"pointer",border:(vw.type||"collection")===t.v?"none":`1px solid ${M3.outlineVar}`,background:(vw.type||"collection")===t.v?"#D3E3FD":"white",color:(vw.type||"collection")===t.v?"#041E49":"#9AA0A6",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}><span className="msi" style={{fontSize:16}}>{t.icon}</span>{t.label}</button>))}</div></div>
-            <div style={{marginBottom:16}}><SLabel>View Prompt</SLabel><textarea value={vw.prompt||""} onChange={e=>updVw({prompt:e.target.value})} placeholder="このビューの実装についてCCへの補足を書く" style={{width:"100%",boxSizing:"border-box",border:`1px solid ${M3.outlineVar}`,borderRadius:M3.shapeSm,background:"white",fontFamily:"inherit",fontSize:14,color:vw.prompt?"#1A1A1A":"#C4C7C5",lineHeight:1.6,padding:"8px 16px",resize:"vertical",minHeight:80,outline:"none"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";e.target.style.boxShadow="0 0 0 3px rgba(26,115,232,.12)";e.target.style.color="#1A1A1A";}} onBlur={e=>{e.target.style.borderColor="";e.target.style.boxShadow="none";if(!e.target.value)e.target.style.color="#C4C7C5";}}/></div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -328,7 +256,6 @@ function App(){
   const[tab,setTab]=useState("object");
   const[objSelId,setObjSelId]=useState(null);
   const[selRelId,setSelRelId]=useState(null);
-  const[viewScreenId,setViewScreenId]=useState(null);
   const clipRef=useRef(null);
   // マップビューからの選択状態参照用
   const mapSelRef=useRef({vwId:null,navId:null});
@@ -344,7 +271,7 @@ function App(){
       showToast('Copied: '+ent.name);
       return true;
     }
-    if(tab==='view'&&!viewScreenId){
+    if(tab==='view'){
       const{vwId}=mapSelRef.current;
       if(!vwId)return false;
       const vw=model.views.find(s=>s.id===vwId);
@@ -354,7 +281,7 @@ function App(){
       return true;
     }
     return false;
-  },[tab,objSelId,viewScreenId,model]);
+  },[tab,objSelId,model]);
 
   // ペースト
   const handlePaste=useCallback(()=>{
@@ -367,7 +294,7 @@ function App(){
       showToast('Pasted: '+src.name);
       return true;
     }
-    if(tab==='view'&&!viewScreenId&&clipRef.current.type==='view'){
+    if(tab==='view'&&clipRef.current.type==='view'){
       const src=clipRef.current.data;
       const newId=uid();
       setModel(m=>{const newVw={...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40,objectId:src.objectId||"",fields:[...(src.fields||[])],verbs:[...(src.verbs||[])]};delete newVw.objects;delete newVw.name;return{...m,views:[...m.views,newVw]};});
@@ -375,7 +302,7 @@ function App(){
       return true;
     }
     return false;
-  },[tab,viewScreenId,setModel]);
+  },[tab,setModel]);
 
   // カット
   const handleCut=useCallback(()=>{
@@ -389,7 +316,7 @@ function App(){
       showToast('Cut: '+ent.name);
       return true;
     }
-    if(tab==='view'&&!viewScreenId){
+    if(tab==='view'){
       const{vwId}=mapSelRef.current;
       if(!vwId)return false;
       const vw=model.views.find(s=>s.id===vwId);
@@ -400,7 +327,7 @@ function App(){
       return true;
     }
     return false;
-  },[tab,objSelId,viewScreenId,model,setModel]);
+  },[tab,objSelId,model,setModel]);
 
   // 削除: タブに応じてオブジェクト/リレーション/ビュー/トランジションを削除
   const handleDelete=useCallback(()=>{
@@ -422,7 +349,7 @@ function App(){
       showToast('Deleted: '+ent.name);
       return true;
     }
-    if(tab==='view'&&!viewScreenId){
+    if(tab==='view'){
       const{vwId,navId}=mapSelRef.current;
       if(navId){
         const nav=model.transitions.find(n=>n.id===navId);
@@ -439,7 +366,7 @@ function App(){
       return true;
     }
     return false;
-  },[tab,objSelId,selRelId,viewScreenId,model,setModel]);
+  },[tab,objSelId,selRelId,model,setModel]);
 
   // グローバル関数登録
   useEffect(()=>{
@@ -495,8 +422,7 @@ function App(){
       </div>
       <div style={{flex:1,overflow:"hidden"}}>
         {tab==="object"&&<ObjectView model={model} setModel={setModel} setModelSilent={setModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId}/>}
-        {tab==="view"&&!viewScreenId&&<MapView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelectScreen={(id)=>setViewScreenId(id)} onSelChange={setMapSelRef}/>}
-        {tab==="view"&&viewScreenId&&<ViewDetailView screenId={viewScreenId} model={model} setModel={setModel} onBack={()=>setViewScreenId(null)}/>}
+        {tab==="view"&&<MapView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setMapSelRef}/>}
       </div>
     </div>
   );
