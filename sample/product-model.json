@@ -7,18 +7,16 @@
         {
           "id": "r1",
           "targetId": "project",
-          "type": "has-many",
-          "label": "contains"
+          "type": "has-many"
         },
         {
           "id": "r2",
           "targetId": "member",
-          "type": "has-many",
-          "label": "has"
+          "type": "has-many"
         }
       ],
-      "x": 100,
-      "y": -268
+      "x": 94,
+      "y": -312
     },
     {
       "id": "member",
@@ -27,14 +25,12 @@
         {
           "id": "r3",
           "targetId": "task",
-          "type": "has-many",
-          "label": "assigned to"
+          "type": "has-many"
         },
         {
           "id": "r9",
           "targetId": "comment",
-          "type": "has-many",
-          "label": "posted"
+          "type": "has-many"
         }
       ],
       "x": -107,
@@ -47,24 +43,21 @@
         {
           "id": "r4",
           "targetId": "task",
-          "type": "has-many",
-          "label": "contains"
+          "type": "has-many"
         },
         {
           "id": "r5",
           "targetId": "member",
-          "type": "has-many",
-          "label": "assigned"
+          "type": "has-many"
         },
         {
           "id": "49xny9",
           "targetId": "task",
-          "type": "has-many",
-          "label": ""
+          "type": "has-many"
         }
       ],
-      "x": 659,
-      "y": -233
+      "x": 613,
+      "y": -109
     },
     {
       "id": "task",
@@ -73,14 +66,12 @@
         {
           "id": "r6",
           "targetId": "comment",
-          "type": "has-many",
-          "label": "has"
+          "type": "has-many"
         },
         {
           "id": "r7",
           "targetId": "label",
-          "type": "has-many",
-          "label": "tagged"
+          "type": "has-many"
         }
       ],
       "x": 308,
@@ -97,8 +88,8 @@
       "id": "comment",
       "name": "コメント",
       "relations": [],
-      "x": 53,
-      "y": 297
+      "x": -163,
+      "y": 304
     }
   ],
   "actors": [
