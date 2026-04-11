@@ -2,7 +2,8 @@
 (function(exports) {
 
   var SORT_LAST = Infinity;
-  var TYPE_ORDER_OTHER = 2;
+  // メイン/サブ間の追加ギャップ（gapYの倍率）
+  var SUB_GAP_FACTOR = 0.6;
 
   // objectsのリレーション階層深さを計算（BFS）
   function computeObjectDepths(objects) {
@@ -44,6 +45,26 @@
     return depth;
   }
 
+  // Paneをメイン（最初のcollection + 最初のsingle）とサブに分離
+  function splitMainSub(panes) {
+    var main = [];
+    var sub = [];
+    var hasCollection = false;
+    var hasSingle = false;
+    panes.forEach(function(vw) {
+      if (vw.type === 'collection' && !hasCollection) {
+        hasCollection = true;
+        main.push(vw);
+      } else if (vw.type === 'single' && !hasSingle) {
+        hasSingle = true;
+        main.push(vw);
+      } else {
+        sub.push(vw);
+      }
+    });
+    return { main: main, sub: sub };
+  }
+
   // Paneをobjectの階層深さ順にグルーピング・ソート
   function groupAndSortPanes(views, objects, depth) {
     var groups = {};
@@ -73,8 +94,8 @@
     var typeOrder = { collection: 0, single: 1 };
     groupOrder.forEach(function(oid) {
       groups[oid].sort(function(a, b) {
-        var oa = typeOrder[a.type] !== undefined ? typeOrder[a.type] : TYPE_ORDER_OTHER;
-        var ob = typeOrder[b.type] !== undefined ? typeOrder[b.type] : TYPE_ORDER_OTHER;
+        var oa = typeOrder[a.type] !== undefined ? typeOrder[a.type] : 2;
+        var ob = typeOrder[b.type] !== undefined ? typeOrder[b.type] : 2;
         return oa - ob;
       });
     });
@@ -82,7 +103,7 @@
     return { groups: groups, groupOrder: groupOrder };
   }
 
-  // Pane自動配置（オブジェクトグループ × 階層順）
+  // Pane自動配置（オブジェクトグループ × 階層順 + メイン/サブ分離）
   exports.ensureViewPositions = function(data, config) {
     if (!data || !data.views) return data;
     var views = data.views;
@@ -108,16 +129,35 @@
     var objects = data.objects || [];
     var depth = computeObjectDepths(objects);
     var result = groupAndSortPanes(views, objects, depth);
+    var subGap = Math.round(gapY * SUB_GAP_FACTOR);
 
-    // 列ごとに配置
+    // 全列のメインPane最大数を算出（サブPaneの開始Y座標を揃えるため）
+    var maxMainCount = 0;
+    result.groupOrder.forEach(function(oid) {
+      var split = splitMainSub(result.groups[oid]);
+      if (split.main.length > maxMainCount) maxMainCount = split.main.length;
+    });
+
+    // 列ごとに配置（メイン → ギャップ → サブ）
     result.groupOrder.forEach(function(oid, col) {
-      result.groups[oid].forEach(function(vw, row) {
+      var split = splitMainSub(result.groups[oid]);
+      // メインPaneを上に配置
+      split.main.forEach(function(vw, row) {
         vw.x = padX + col * gapX;
         vw.y = padY + row * gapY;
+      });
+      // サブPaneをギャップを空けて下に配置（全列で開始Y座標を揃える）
+      var subStartY = padY + maxMainCount * gapY + subGap;
+      split.sub.forEach(function(vw, row) {
+        vw.x = padX + col * gapX;
+        vw.y = subStartY + row * gapY;
       });
     });
 
     return data;
   };
+
+  // テスト用にエクスポート
+  exports._splitMainSub = splitMainSub;
 
 })(typeof module !== 'undefined' ? module.exports : (window.__editorLib = window.__editorLib || {}));
