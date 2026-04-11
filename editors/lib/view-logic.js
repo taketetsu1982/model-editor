@@ -3,6 +3,8 @@
 
   var SORT_LAST = Infinity;
   var TYPE_ORDER_OTHER = 2;
+  // メイン/サブ間の追加ギャップ（gapYの倍率）
+  var SUB_GAP_FACTOR = 0.6;
 
   // objectsのリレーション階層深さを計算（BFS）
   function computeObjectDepths(objects) {
@@ -44,6 +46,26 @@
     return depth;
   }
 
+  // Paneをメイン（最初のcollection + 最初のsingle）とサブに分離
+  function splitMainSub(panes) {
+    var main = [];
+    var sub = [];
+    var hasCollection = false;
+    var hasSingle = false;
+    panes.forEach(function(vw) {
+      if (vw.type === 'collection' && !hasCollection) {
+        hasCollection = true;
+        main.push(vw);
+      } else if (vw.type === 'single' && !hasSingle) {
+        hasSingle = true;
+        main.push(vw);
+      } else {
+        sub.push(vw);
+      }
+    });
+    return { main: main, sub: sub };
+  }
+
   // Paneをobjectの階層深さ順にグルーピング・ソート
   function groupAndSortPanes(views, objects, depth) {
     var groups = {};
@@ -82,7 +104,7 @@
     return { groups: groups, groupOrder: groupOrder };
   }
 
-  // Pane自動配置（オブジェクトグループ × 階層順）
+  // Pane自動配置（オブジェクトグループ × 階層順 + メイン/サブ分離）
   exports.ensureViewPositions = function(data, config) {
     if (!data || !data.views) return data;
     var views = data.views;
@@ -108,16 +130,34 @@
     var objects = data.objects || [];
     var depth = computeObjectDepths(objects);
     var result = groupAndSortPanes(views, objects, depth);
+    var subGap = Math.round(gapY * SUB_GAP_FACTOR);
 
-    // 列ごとに配置
+    // splitMainSubの結果をキャッシュ
+    var splits = {};
+    var maxMainCount = 0;
+    result.groupOrder.forEach(function(oid) {
+      splits[oid] = splitMainSub(result.groups[oid]);
+      if (splits[oid].main.length > maxMainCount) maxMainCount = splits[oid].main.length;
+    });
+
+    // 列ごとに配置（メイン → ギャップ → サブ）
+    var subStartY = padY + maxMainCount * gapY + subGap;
     result.groupOrder.forEach(function(oid, col) {
-      result.groups[oid].forEach(function(vw, row) {
+      var split = splits[oid];
+      split.main.forEach(function(vw, row) {
         vw.x = padX + col * gapX;
         vw.y = padY + row * gapY;
+      });
+      split.sub.forEach(function(vw, row) {
+        vw.x = padX + col * gapX;
+        vw.y = subStartY + row * gapY;
       });
     });
 
     return data;
   };
+
+  // テスト用にエクスポート
+  exports._splitMainSub = splitMainSub;
 
 })(typeof module !== 'undefined' ? module.exports : (window.__editorLib = window.__editorLib || {}));

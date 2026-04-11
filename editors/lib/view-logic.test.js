@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { ensureViewPositions } = require('./view-logic.js');
+const { ensureViewPositions, _splitMainSub } = require('./view-logic.js');
 
 const DEFAULT_CONFIG = {
   cols: 3, gapX: 280, gapY: 220, padX: 60, padY: 60,
@@ -39,7 +39,7 @@ describe('ensureViewPositions', () => {
     expect(data.views[1]).toMatchObject({ x: 500, y: 500 });
   });
 
-  it('同じobjectIdのPaneを縦に並べる', () => {
+  it('同じobjectIdのメインPaneを縦に並べる', () => {
     const data = {
       objects: [{ id: 'task', name: 'Task', relations: [] }],
       views: [
@@ -48,9 +48,7 @@ describe('ensureViewPositions', () => {
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    // 同じ列（X座標が同じ）
     expect(data.views[0].x).toBe(data.views[1].x);
-    // collectionが上、singleが下
     expect(data.views[0].y).toBeLessThan(data.views[1].y);
   });
 
@@ -68,23 +66,44 @@ describe('ensureViewPositions', () => {
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    // parentの列が左（X座標が小さい）
     expect(data.views[0].x).toBeLessThan(data.views[1].x);
   });
 
-  it('collection→single→その他の順で縦に並べる', () => {
+  it('サブPaneがメインPaneより下にギャップ付きで配置される', () => {
     const data = {
       objects: [{ id: 'a', name: 'A', relations: [] }],
       views: [
-        { id: 'v1', objectId: 'a', type: 'single' },
-        { id: 'v2', objectId: 'a', type: 'collection' },
-        { id: 'v3', objectId: 'a', type: 'other' },
+        { id: 'v1', objectId: 'a', type: 'collection' },
+        { id: 'v2', objectId: 'a', type: 'single' },
+        { id: 'v3', objectId: 'a', type: 'collection' },
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    // collection(v2)が最上段、single(v1)が中段、other(v3)が最下段
-    expect(data.views[1].y).toBeLessThan(data.views[0].y);
-    expect(data.views[0].y).toBeLessThan(data.views[2].y);
+    // v1=メインcollection, v2=メインsingle, v3=サブ（2つ目のcollection）
+    // メインとサブの間にギャップがある
+    const mainBottomY = data.views[1].y;
+    const subY = data.views[2].y;
+    const normalGap = DEFAULT_CONFIG.gapY;
+    expect(subY - mainBottomY).toBeGreaterThan(normalGap);
+  });
+
+  it('サブPaneの開始Y座標が全列で揃う', () => {
+    const data = {
+      objects: [
+        { id: 'a', name: 'A', relations: [{ id: 'r1', targetId: 'b', type: 'has-many' }] },
+        { id: 'b', name: 'B', relations: [] },
+      ],
+      views: [
+        { id: 'v1', objectId: 'a', type: 'collection' },
+        { id: 'v2', objectId: 'a', type: 'single' },
+        { id: 'v3', objectId: 'a', type: 'collection' },
+        { id: 'v4', objectId: 'b', type: 'collection' },
+        { id: 'v5', objectId: 'b', type: 'collection' },
+      ],
+    };
+    ensureViewPositions(data, DEFAULT_CONFIG);
+    // v3（aのサブ）とv5（bのサブ）のY座標が同じ
+    expect(data.views[2].y).toBe(data.views[4].y);
   });
 
   it('座標未設定のPaneがあれば再配置する', () => {
@@ -110,7 +129,6 @@ describe('ensureViewPositions', () => {
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    // 異なるobjectIdなので別列に配置
     expect(data.views[0].x).toBe(60);
     expect(data.views[0].y).toBe(60);
     expect(data.views[1].x).toBe(340);
@@ -147,7 +165,6 @@ describe('ensureViewPositions', () => {
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    // 3列に分かれる
     expect(data.views[0].x).toBeLessThan(data.views[1].x);
     expect(data.views[1].x).toBeLessThan(data.views[2].x);
   });
@@ -162,5 +179,39 @@ describe('ensureViewPositions', () => {
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
     expect(data.views[0].x).toBeLessThan(data.views[1].x);
+  });
+});
+
+describe('splitMainSub', () => {
+  it('最初のcollectionとsingleがメイン、残りがサブ', () => {
+    const panes = [
+      { id: 'v1', type: 'collection' },
+      { id: 'v2', type: 'single' },
+      { id: 'v3', type: 'collection' },
+      { id: 'v4', type: 'single' },
+    ];
+    const result = _splitMainSub(panes);
+    expect(result.main.map(p => p.id)).toEqual(['v1', 'v2']);
+    expect(result.sub.map(p => p.id)).toEqual(['v3', 'v4']);
+  });
+
+  it('collectionのみの場合、最初の1つだけメイン', () => {
+    const panes = [
+      { id: 'v1', type: 'collection' },
+      { id: 'v2', type: 'collection' },
+    ];
+    const result = _splitMainSub(panes);
+    expect(result.main.map(p => p.id)).toEqual(['v1']);
+    expect(result.sub.map(p => p.id)).toEqual(['v2']);
+  });
+
+  it('サブがない場合は空配列', () => {
+    const panes = [
+      { id: 'v1', type: 'collection' },
+      { id: 'v2', type: 'single' },
+    ];
+    const result = _splitMainSub(panes);
+    expect(result.main.map(p => p.id)).toEqual(['v1', 'v2']);
+    expect(result.sub).toEqual([]);
   });
 });
