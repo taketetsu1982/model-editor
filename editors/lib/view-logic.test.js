@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { ensureViewPositions, _calcPaneHeight } = require('./view-logic.js');
+const { ensureViewPositions, _calcPaneHeight, _splitMainSub } = require('./view-logic.js');
 
 const DEFAULT_CONFIG = {
   gapX: 120, gapY: 80, padX: 60, padY: 60, paneW: 240,
@@ -163,5 +163,28 @@ describe('ensureViewPositions', () => {
     // 同じ深さなので同じ行、横に並ぶ
     expect(data.views[0].y).toBe(data.views[1].y);
     expect(data.views[0].x).toBeLessThan(data.views[1].x);
+  });
+});
+
+describe('splitMainSub', () => {
+  it('最初のcollectionとsingleがメイン、残りがサブ', () => {
+    const panes = [
+      { id: 'v1', type: 'collection' },
+      { id: 'v2', type: 'single' },
+      { id: 'v3', type: 'collection' },
+    ];
+    const result = _splitMainSub(panes);
+    expect(result.main.map(p => p.id)).toEqual(['v1', 'v2']);
+    expect(result.sub.map(p => p.id)).toEqual(['v3']);
+  });
+
+  it('サブがない場合は空配列', () => {
+    const panes = [
+      { id: 'v1', type: 'collection' },
+      { id: 'v2', type: 'single' },
+    ];
+    const result = _splitMainSub(panes);
+    expect(result.main.map(p => p.id)).toEqual(['v1', 'v2']);
+    expect(result.sub).toEqual([]);
   });
 });
