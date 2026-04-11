@@ -71,5 +71,5 @@
 ## transitions
 
 ```json
-{ "id": "一意ID", "from": "view id", "to": "view id", "trigger": "遷移トリガー" }
+{ "id": "一意ID", "from": "Pane id", "to": "Pane id", "trigger": "遷移トリガー" }
 ```

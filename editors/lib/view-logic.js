@@ -2,6 +2,7 @@
 (function(exports) {
 
   var SORT_LAST = Infinity;
+  var TYPE_ORDER_OTHER = 2;
 
   // objectsのリレーション階層深さを計算（BFS）
   function computeObjectDepths(objects) {
@@ -14,6 +15,7 @@
       });
     });
     var roots = objects.filter(function(obj) { return !childIds[obj.id]; });
+    // 循環グラフ等でルートが見つからない場合、先頭要素をフォールバック
     if (roots.length === 0 && objects.length > 0) roots = [objects[0]];
 
     var depth = {};
@@ -71,8 +73,8 @@
     var typeOrder = { collection: 0, single: 1 };
     groupOrder.forEach(function(oid) {
       groups[oid].sort(function(a, b) {
-        var oa = typeOrder[a.type] !== undefined ? typeOrder[a.type] : 2;
-        var ob = typeOrder[b.type] !== undefined ? typeOrder[b.type] : 2;
+        var oa = typeOrder[a.type] !== undefined ? typeOrder[a.type] : TYPE_ORDER_OTHER;
+        var ob = typeOrder[b.type] !== undefined ? typeOrder[b.type] : TYPE_ORDER_OTHER;
         return oa - ob;
       });
     });

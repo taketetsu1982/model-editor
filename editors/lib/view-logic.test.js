@@ -110,9 +110,57 @@ describe('ensureViewPositions', () => {
       ],
     };
     ensureViewPositions(data, DEFAULT_CONFIG);
-    expect(data.views[0].x).toBeDefined();
-    expect(data.views[0].y).toBeDefined();
-    expect(data.views[1].x).toBeDefined();
-    expect(data.views[1].y).toBeDefined();
+    // 異なるobjectIdなので別列に配置
+    expect(data.views[0].x).toBe(60);
+    expect(data.views[0].y).toBe(60);
+    expect(data.views[1].x).toBe(340);
+    expect(data.views[1].y).toBe(60);
+  });
+
+  it('循環参照でも無限ループせず配置できる', () => {
+    const data = {
+      objects: [
+        { id: 'a', name: 'A', relations: [{ id: 'r1', targetId: 'b', type: 'has-many' }] },
+        { id: 'b', name: 'B', relations: [{ id: 'r2', targetId: 'a', type: 'has-many' }] },
+      ],
+      views: [
+        { id: 'v1', objectId: 'a', type: 'collection' },
+        { id: 'v2', objectId: 'b', type: 'collection' },
+      ],
+    };
+    ensureViewPositions(data, DEFAULT_CONFIG);
+    expect(typeof data.views[0].x).toBe('number');
+    expect(typeof data.views[1].x).toBe('number');
+  });
+
+  it('3階層以上のBFS伝播で列が分かれる', () => {
+    const data = {
+      objects: [
+        { id: 'gp', name: 'GrandParent', relations: [{ id: 'r1', targetId: 'p', type: 'has-many' }] },
+        { id: 'p', name: 'Parent', relations: [{ id: 'r2', targetId: 'c', type: 'has-many' }] },
+        { id: 'c', name: 'Child', relations: [] },
+      ],
+      views: [
+        { id: 'v1', objectId: 'gp', type: 'collection' },
+        { id: 'v2', objectId: 'p', type: 'collection' },
+        { id: 'v3', objectId: 'c', type: 'collection' },
+      ],
+    };
+    ensureViewPositions(data, DEFAULT_CONFIG);
+    // 3列に分かれる
+    expect(data.views[0].x).toBeLessThan(data.views[1].x);
+    expect(data.views[1].x).toBeLessThan(data.views[2].x);
+  });
+
+  it('objectId未設定のPaneが最右列に配置される', () => {
+    const data = {
+      objects: [{ id: 'a', name: 'A', relations: [] }],
+      views: [
+        { id: 'v1', objectId: 'a', type: 'collection' },
+        { id: 'v2', type: 'collection' },
+      ],
+    };
+    ensureViewPositions(data, DEFAULT_CONFIG);
+    expect(data.views[0].x).toBeLessThan(data.views[1].x);
   });
 });
