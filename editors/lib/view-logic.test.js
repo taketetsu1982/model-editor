@@ -101,4 +101,18 @@ describe('ensureViewPositions', () => {
     expect(data.views[1].x).toBe(60);
     expect(data.views[1].y).toBe(280);
   });
+
+  it('objectsがない場合でもPaneを配置できる', () => {
+    const data = {
+      views: [
+        { id: 'v1', objectId: 'a', type: 'collection' },
+        { id: 'v2', objectId: 'b', type: 'single' },
+      ],
+    };
+    ensureViewPositions(data, DEFAULT_CONFIG);
+    expect(data.views[0].x).toBeDefined();
+    expect(data.views[0].y).toBeDefined();
+    expect(data.views[1].x).toBeDefined();
+    expect(data.views[1].y).toBeDefined();
+  });
 });
