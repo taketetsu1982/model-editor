@@ -74,8 +74,8 @@ editors/
 sample/
 └── product-model.json       # サンプルデータ
 skills/
-├── model/SKILL.md           # /model スキル定義
-└── editor/SKILL.md          # /editor スキル定義
+├── generate/SKILL.md        # /generate スキル定義
+└── edit/SKILL.md            # /edit スキル定義
 ```
 
 > テストファイル（`*.test.js`）は各ロジックファイルに並置。
@@ -100,8 +100,8 @@ claude --plugin-dir /path/to/model-editor
 
 | スキル | 説明 |
 |---|---|
-| `/model` | PRD等からプロダクトモデルJSON一括生成 |
-| `/editor` | HTMLエディタをブラウザで開いて編集 |
+| `/generate` | PRD等からプロダクトモデルJSON一括生成 |
+| `/edit` | HTMLエディタをブラウザで開いて編集 |
 
 ## ライセンス
 

@@ -1,9 +1,9 @@
 ---
-name: editor
+name: edit
 description: HTMLエディタをブラウザで開き、product-model.jsonを視覚的に編集する
 ---
 
-# /editor
+# /edit
 
 HTMLエディタをブラウザで開く。エディタ上でオブジェクト・ビュー・遷移を視覚的に編集できる。
 
