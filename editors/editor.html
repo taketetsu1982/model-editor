@@ -306,7 +306,7 @@ function ScreenView({model,setModel,setModelSilent}){
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{flex:1,position:"relative",overflow:"hidden"}}>
           <svg ref={svgRef} width="100%" height="100%" style={{cursor:drag?"grabbing":panning?"grabbing":"grab",display:"block",userSelect:drag||panning?"none":"auto"}} onMouseMove={onMM} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel} onClick={e=>{if(e.target===e.currentTarget||e.target.getAttribute('data-bg')){setSelId(null);}}}>
-            <defs><pattern id="scrdots" width={24/zoom} height={24/zoom} patternUnits="userSpaceOnUse" x={(-pan.x*zoom)%24} y={(-pan.y*zoom)%24}><circle cx={1/zoom} cy={1/zoom} r={1/zoom} fill="#E0E0E0"/></pattern></defs>
+            <defs><pattern id="scrdots" width={24/zoom} height={24/zoom} patternUnits="userSpaceOnUse" x={(-pan.x*zoom)%24} y={(-pan.y*zoom)%24}><circle cx={1/zoom} cy={1/zoom} r={1/zoom} fill="#E0E0E0"/></pattern><marker id="scrarr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9AA0A6"/></marker></defs>
             <rect width="100%" height="100%" fill="url(#scrdots)" data-bg="1" onMouseDown={onBgMD}/>
             <g transform={`scale(${zoom}) translate(${-pan.x},${-pan.y})`}>
             {items.map(sc=>{const isSel=selId===sc.id;const sx=sc.x||0,sy=sc.y||0;const panes=(sc.paneIds||[]).map(pid=>model.views.find(v=>v.id===pid)).filter(Boolean);const{w:cardW,h:cardH}=scrCardSize(sc,model.views,model.objects);return(
@@ -338,6 +338,13 @@ function ScreenView({model,setModel,setModelSilent}){
                 <rect width={cardW} height={cardH} rx={14} fill="none" stroke={isSel?"#1A73E8":"#E0E0E0"} strokeWidth={isSel?2.5:1.5}/>
               </g>
             );})}
+            {/* PaneGraph辺 */}
+            {(()=>{
+              // 現在のデバイスタブのPane絶対座標マップを構築
+              const panePos={};
+              items.forEach(sc=>{const sx=sc.x||0,sy=sc.y||0;const{w:cardW}=scrCardSize(sc,model.views,model.objects);const pw=cardW-SCR_PAD*2;(sc.paneIds||[]).forEach((pid,pi)=>{if(!panePos[pid]){panePos[pid]={x:sx+SCR_PAD,y:sy+SCR_HEADER_H+SCR_PANE_PAD+pi*(SCR_PANE_H+SCR_PANE_GAP),w:pw,h:SCR_PANE_H};}});});
+              return(model.paneGraph||[]).map(edge=>{const fp=panePos[edge.from],tp=panePos[edge.to];if(!fp||!tp)return null;const isEmbed=(edge.type||"drilldown")==="embed";const f=edgePt(fp.x,fp.y,fp.w,fp.h,tp.x+tp.w/2,tp.y+tp.h/2),t=edgePt(tp.x,tp.y,tp.w,tp.h,fp.x+fp.w/2,fp.y+fp.h/2);return<line key={`se-${edge.id}`} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#9AA0A6" strokeWidth={1.5} markerEnd={isEmbed?undefined:"url(#scrarr)"}/>;});
+            })()}
             </g>
           </svg>
           <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
