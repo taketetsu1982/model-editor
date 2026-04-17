@@ -2,6 +2,7 @@
 
 ```json
 {
+  "devices": [],
   "objects": [],
   "views": [],
   "paneGraph": [],
@@ -11,10 +12,21 @@
 
 | フィールド | 説明 |
 |---|---|
+| devices | Device一覧（文字列配列） |
 | objects | Object定義 |
 | views | Pane定義（type: "collection" / "single"） |
-| paneGraph | Pane Graph — Pane間の有向辺（遷移）定義 |
+| paneGraph | Pane Graph — Pane間の辺定義（drilldown / embed） |
 | screens | Screen定義（デバイス別Pane構成） |
+
+## devices
+
+```json
+["mobile", "desktop"]
+```
+
+- プロダクトが対応するデバイス種別の一覧（文字列配列）
+- Screen定義の `device` フィールドで参照される
+- デフォルト: `["mobile", "desktop"]`
 
 ## objects
 
@@ -63,11 +75,13 @@ Pane間の関係をグラフの辺として定義する。PaneがどうScreenに
 { "id": "一意ID", "from": "Pane id", "to": "Pane id", "type": "drilldown | embed", "param": "受け渡しパラメータ" }
 ```
 
+- `from`, `to`: views配列内のPane IDのみ指定可（Screen IDは不可）
 - `type`: 辺の種類
-  - `drilldown`: 有向辺（矢印）。ユーザー操作で別Paneに遷移する。例: Collection → Single
+  - `drilldown`: 有向辺（矢印）。ユーザー操作で別Paneに遷移する。例: Collection → Single（同一Object）
   - `embed`: 無向辺（線）。上位ObjectのSingleが下位ObjectのCollectionを内包する親子関係を表す
-- `param`: drilldownの場合に遷移先へ渡すパラメータを日本語で記述する（例: 「プロジェクトID」）。embedでは省略可
+- `param`: drilldownの場合に遷移先へ渡すパラメータを日本語で記述する（例: 「プロジェクトID」）。embedでは省略
 - Pane間の遷移はPane Graphの辺に従う（独自遷移を作らない）
+- drilldownは同一ObjectのCollection→Singleが基本。異なるObject間のdrilldownは原則定義しない
 
 ## screens
 
@@ -75,11 +89,12 @@ Pane間の関係をグラフの辺として定義する。PaneがどうScreenに
 {
   "id": "kebab-case識別子",
   "name": "画面名",
-  "device": "mobile | tablet | desktop",
+  "device": "devices配列内の値",
   "paneIds": ["Pane id"]
 }
 ```
 
+- `device`: devices配列で定義したデバイス名を指定する
+- `paneIds`: views配列内のPane IDを指定する
 - デバイスごとにPaneをグルーピングして1つの画面（Screen）を構成する
 - 同じ名前のScreenを異なるdeviceで定義し、デバイスごとのPane構成の違いを表現する
-- `paneIds` にはviews配列内のPaneのidを指定する
