@@ -252,13 +252,6 @@
       "param": "タスクID"
     },
     {
-      "id": "d4",
-      "from": "my-task-collection",
-      "to": "project-single",
-      "type": "drilldown",
-      "param": "プロジェクトID"
-    },
-    {
       "id": "e1",
       "from": "project-single",
       "to": "task-collection",
@@ -291,8 +284,8 @@
       "paneIds": [
         "project-collection"
       ],
-      "x": 166,
-      "y": -4
+      "x": -27,
+      "y": -192
     },
     {
       "id": "home-desktop",
@@ -312,8 +305,8 @@
       "paneIds": [
         "project-single"
       ],
-      "x": -20,
-      "y": 179
+      "x": -14,
+      "y": -18
     },
     {
       "id": "project-desktop",
@@ -335,8 +328,8 @@
       "paneIds": [
         "task-single"
       ],
-      "x": -89,
-      "y": -255
+      "x": -601,
+      "y": 252
     },
     {
       "id": "task-desktop",
@@ -346,8 +339,8 @@
         "task-single",
         "comment-collection"
       ],
-      "x": -144,
-      "y": 272
+      "x": -83,
+      "y": 273
     },
     {
       "id": "my-tasks-mobile",
@@ -356,8 +349,8 @@
       "paneIds": [
         "my-task-collection"
       ],
-      "x": -462,
-      "y": -23
+      "x": -310,
+      "y": -15
     },
     {
       "id": "my-tasks-desktop",
@@ -369,6 +362,16 @@
       ],
       "x": -564,
       "y": 112
+    },
+    {
+      "id": "9cw2te",
+      "name": "タスク一覧",
+      "device": "mobile",
+      "paneIds": [
+        "task-collection"
+      ],
+      "x": -13,
+      "y": 141.5
     }
   ]
 }
