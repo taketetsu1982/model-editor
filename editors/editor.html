@@ -338,14 +338,15 @@ function ScreenView({model,setModel,setModelSilent}){
                 <rect width={cardW} height={cardH} rx={14} fill="none" stroke={isSel?"#1A73E8":"#E0E0E0"} strokeWidth={isSel?2.5:1.5}/>
               </g>
             );})}
-            {/* Screen間の辺（paneGraphからScreen接続を導出、重複排除） */}
+            {/* Screen間の辺（paneGraphからScreen接続を導出、同一方向の重複排除） */}
             {(()=>{
-              // Pane→Screen逆引きマップ
-              const paneToScr={};
-              items.forEach(sc=>{(sc.paneIds||[]).forEach(pid=>{if(!paneToScr[pid])paneToScr[pid]=sc.id;});});
-              // Screen間接続を導出（重複排除）
-              const seen=new Set();
-              return(model.paneGraph||[]).map(edge=>{const scrFrom=paneToScr[edge.from],scrTo=paneToScr[edge.to];if(!scrFrom||!scrTo||scrFrom===scrTo)return null;const key=scrFrom<scrTo?scrFrom+":"+scrTo:scrTo+":"+scrFrom;if(seen.has(key))return null;seen.add(key);const sf=items.find(s=>s.id===scrFrom),st=items.find(s=>s.id===scrTo);if(!sf||!st)return null;const sfSize=scrCardSize(sf,model.views,model.objects),stSize=scrCardSize(st,model.views,model.objects);const f=edgePt(sf.x||0,sf.y||0,sfSize.w,sfSize.h,(st.x||0)+stSize.w/2,(st.y||0)+stSize.h/2),t=edgePt(st.x||0,st.y||0,stSize.w,stSize.h,(sf.x||0)+sfSize.w/2,(sf.y||0)+sfSize.h/2);return<line key={`se-${key}`} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#9AA0A6" strokeWidth={1.5} markerEnd="url(#scrarr)"/>;});
+              // Pane→所属Screen一覧マップ（1つのPaneが複数Screenに含まれうる）
+              const paneToScrs={};
+              items.forEach(sc=>{(sc.paneIds||[]).forEach(pid=>{if(!paneToScrs[pid])paneToScrs[pid]=[];paneToScrs[pid].push(sc.id);});});
+              // Screen間接続を導出（同一方向ペアの重複排除）
+              const seen=new Set();const lines=[];
+              (model.paneGraph||[]).forEach(edge=>{const fromScrs=paneToScrs[edge.from]||[],toScrs=paneToScrs[edge.to]||[];fromScrs.forEach(fid=>{toScrs.forEach(tid=>{if(fid===tid)return;const key=fid+">"+tid;if(seen.has(key))return;seen.add(key);lines.push({fid,tid,key});});});});
+              return lines.map(({fid,tid,key})=>{const sf=items.find(s=>s.id===fid),st=items.find(s=>s.id===tid);if(!sf||!st)return null;const sfSize=scrCardSize(sf,model.views,model.objects),stSize=scrCardSize(st,model.views,model.objects);const f=edgePt(sf.x||0,sf.y||0,sfSize.w,sfSize.h,(st.x||0)+stSize.w/2,(st.y||0)+stSize.h/2),t=edgePt(st.x||0,st.y||0,stSize.w,stSize.h,(sf.x||0)+sfSize.w/2,(sf.y||0)+sfSize.h/2);return<line key={`se-${key}`} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#9AA0A6" strokeWidth={1.5} markerEnd="url(#scrarr)"/>;});
             })()}
             </g>
           </svg>
