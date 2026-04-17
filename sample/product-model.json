@@ -1,4 +1,8 @@
 {
+  "devices": [
+    "desktop",
+    "mobile"
+  ],
   "objects": [
     {
       "id": "workspace",
@@ -296,10 +300,10 @@
       "device": "desktop",
       "paneIds": [
         "project-collection",
-        "member-collection"
+        "task-collection"
       ],
-      "x": 218,
-      "y": -115
+      "x": -494,
+      "y": -280
     },
     {
       "id": "project-mobile",
@@ -317,10 +321,12 @@
       "device": "desktop",
       "paneIds": [
         "project-single",
-        "task-collection"
+        "task-collection",
+        "label-collection",
+        "member-collection"
       ],
-      "x": -140,
-      "y": -276
+      "x": 64,
+      "y": -94
     },
     {
       "id": "task-mobile",
@@ -340,8 +346,8 @@
         "task-single",
         "comment-collection"
       ],
-      "x": -139,
-      "y": 196
+      "x": -144,
+      "y": 272
     },
     {
       "id": "my-tasks-mobile",
@@ -361,12 +367,8 @@
         "project-collection",
         "task-collection"
       ],
-      "x": -531,
-      "y": -45
+      "x": -564,
+      "y": 112
     }
-  ],
-  "devices": [
-    "mobile",
-    "desktop"
   ]
 }

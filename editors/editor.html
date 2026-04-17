@@ -298,7 +298,7 @@ const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR
 // Screenカードの幅・高さ計算
 const scrCardSize=(sc,views,objects)=>{const panes=(sc.paneIds||[]).map(pid=>views.find(v=>v.id===pid)).filter(Boolean);const pw=panes.reduce((mx,vw)=>{const lbl=viewLabel(vw,objects);return Math.max(mx,labelWidth(lbl)+40);},0);const w=Math.max(SCR_MIN_W,pw+SCR_PANE_PAD*2+SCR_PAD*2);const bodyH=panes.length>0?(panes.length*SCR_PANE_H+(panes.length-1)*SCR_PANE_GAP+SCR_PANE_PAD*2):48;return{w,h:SCR_HEADER_H+bodyH};};
 
-function ScreenView({model,setModel,setModelSilent}){
+function ScreenView({model,setModel,setModelSilent,onSelChange}){
   const devices=model.devices||["mobile","desktop"];
   const[selId,setSelId]=useState(null);
   const[deviceTab,setDeviceTab]=useState(()=>devices[0]||"mobile");
@@ -321,6 +321,8 @@ function ScreenView({model,setModel,setModelSilent}){
   devices.forEach(d=>{byDevice[d]=[];});
   (model.screens||[]).forEach(sc=>{const d=sc.device||devices[0];if(byDevice[d])byDevice[d].push(sc);});
   const items=byDevice[deviceTab]||[];
+
+  useEffect(()=>{onSelChange?.(selId);},[selId]);
 
   // キャンバス操作
   const onBgMD=e=>{setPanning(true);panStart.current={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};};
@@ -432,6 +434,8 @@ function App(){
   // マップビューからの選択状態参照用
   const mapSelRef=useRef({vwId:null,navId:null});
   const setMapSelRef=(vwId,navId)=>{mapSelRef.current={vwId,navId};};
+  const scrSelRef=useRef(null);
+  const setScrSelRef=id=>{scrSelRef.current=id;};
 
   // コピー: objectタブではオブジェクト、viewタブではビューをコピー
   const handleCopy=useCallback(()=>{
@@ -452,6 +456,15 @@ function App(){
       showToast('Copied: '+viewLabel(vw,model.objects));
       return true;
     }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(model.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
+      showToast('Copied: '+sc.name);
+      return true;
+    }
     return false;
   },[tab,objSelId,model]);
 
@@ -470,6 +483,13 @@ function App(){
       const src=clipRef.current.data;
       const newId=uid();
       setModel(m=>{const newVw={...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40,objectId:src.objectId||"",fields:[...(src.fields||[])],verbs:[...(src.verbs||[])]};delete newVw.objects;delete newVw.name;return{...m,views:[...m.views,newVw]};});
+      showToast('Pasted: '+src.name);
+      return true;
+    }
+    if(tab==='screen'&&clipRef.current.type==='screen'){
+      const src=clipRef.current.data;
+      const newId=uid();
+      setModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40}]}));
       showToast('Pasted: '+src.name);
       return true;
     }
@@ -496,6 +516,16 @@ function App(){
       clipRef.current={type:'view',data:JSON.parse(JSON.stringify(vw))};
       setModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
       showToast('Cut: '+viewLabel(vw,model.objects));
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(model.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
+      setModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
+      showToast('Cut: '+sc.name);
       return true;
     }
     return false;
@@ -535,6 +565,15 @@ function App(){
       if(!vw)return false;
       setModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
       showToast('Deleted: '+viewLabel(vw,model.objects));
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(model.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      setModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
+      showToast('Deleted: '+sc.name);
       return true;
     }
     return false;
@@ -595,7 +634,7 @@ function App(){
         {tab==="object"&&<ObjectView model={model} setModel={setModel} setModelSilent={setModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
 
         {tab==="pane"&&<MapView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
-        {tab==="screen"&&<ScreenView model={model} setModel={setModel} setModelSilent={setModelSilent}/>}
+        {tab==="screen"&&<ScreenView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setScrSelRef}/>}
       </div>
     </div>
   );
