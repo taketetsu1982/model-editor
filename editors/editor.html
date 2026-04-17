@@ -59,12 +59,13 @@ function splitData(data){
     return{...v,fields:v.fields||[],verbs:v.verbs||[]};
   });
   if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  return{objects:objs,views:vws,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[]};
+  const DEFAULT_DEVICES=["mobile","desktop"];
+  return{objects:objs,views:vws,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES};
 }
 
 const io=window.__editorIO.createFileIO({
   ids:{toast:'ed-toast',dot:'ed-dot',label:'ed-label',hint:'ed-hint',edited:'ed-edited',autoBtn:'ed-auto-btn',overlay:'ed-drop-overlay'},
-  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens};},
+  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens,devices:dataRef.devices};},
   onDisconnect(){passthrough={};},
   loadDataKey:'__edLoadData',
   keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
@@ -107,7 +108,7 @@ const TYPE_LABEL={collection:"Collection",single:"Single"};
 // ビューの表示名: "オブジェクト名 Collection" 等
 const viewLabel=(vw,objs)=>{const on=objName(objs,vw.objectId);const tl=TYPE_LABEL[vw.type]||vw.type;return on+" "+tl;};
 
-const EMPTY={objects:[],views:[],paneGraph:[],screens:[]};
+const EMPTY={objects:[],views:[],paneGraph:[],screens:[],devices:["mobile","desktop"]};
 function ensurePositions(data){return _ensurePositions(data,{cols:OBJ_GRID_COLS,gapX:OBJ_GRID_GAP_X,gapY:OBJ_GRID_GAP_Y,padX:OBJ_GRID_PAD_X,padY:OBJ_GRID_PAD_Y});}
 function ensureViewPositions(data){return _ensureViewPositions(data,{cols:VW_GRID_COLS,gapX:VW_GRID_GAP_X,gapY:VW_GRID_GAP_Y,padX:VW_GRID_PAD_X,padY:VW_GRID_PAD_Y,paneW:SW,minSpanFactor:160,minSpanMin:200});}
 const loadGenRef={current:0};
@@ -261,8 +262,36 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
   );
 }
 
+/* ===== DeviceEditModal ===== */
+function DeviceEditModal({devices,onSave,onClose}){
+  const[list,setList]=useState(()=>[...devices]);
+  const[confirmDel,setConfirmDel]=useState(null);
+  const add=()=>{setList(l=>[...l,"new-device"]);};
+  const upd=(i,val)=>setList(l=>l.map((d,j)=>j===i?val:d));
+  const del=i=>setList(l=>l.filter((_,j)=>j!==i));
+  const move=(i,dir)=>{setList(l=>{const n=[...l];const t=n[i];n[i]=n[i+dir];n[i+dir]=t;return n;});};
+  return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.32)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}><div style={{background:"var(--md-sys-color-surface)",borderRadius:"var(--md-sys-shape-lg)",boxShadow:"var(--md-sys-elevation-2)",width:400,maxHeight:"70vh",display:"flex",flexDirection:"column",fontFamily:"inherit"}} onClick={e=>e.stopPropagation()}>
+    <div style={{padding:"24px 24px 16px",borderBottom:"1px solid var(--md-sys-color-outline-variant)",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:16,fontWeight:500,color:"var(--md-sys-color-on-surface)"}}>Devices</span><Btn ghost small onClick={add}>+ Add</Btn></div>
+    <div style={{flex:1,overflowY:"auto",padding:"8px 24px"}}>
+      {list.map((d,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid var(--md-sys-color-surface-container)"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:2}}>
+          <button disabled={i===0} onClick={()=>move(i,-1)} style={{background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"#E0E0E0":"#9AA0A6",padding:0,fontSize:12,lineHeight:1}}><span className="msi" style={{fontSize:16}}>arrow_upward</span></button>
+          <button disabled={i===list.length-1} onClick={()=>move(i,1)} style={{background:"none",border:"none",cursor:i===list.length-1?"default":"pointer",color:i===list.length-1?"#E0E0E0":"#9AA0A6",padding:0,fontSize:12,lineHeight:1}}><span className="msi" style={{fontSize:16}}>arrow_downward</span></button>
+        </div>
+        <input value={d} onChange={e=>upd(i,e.target.value)} style={{flex:1,border:"1px solid var(--md-sys-color-outline)",borderRadius:"var(--md-sys-shape-xs)",background:"var(--md-sys-color-surface)",color:"var(--md-sys-color-on-surface)",fontSize:14,padding:"8px 16px",outline:"none",fontFamily:"inherit"}} onFocus={e=>{e.target.style.borderColor="#1A73E8";}} onBlur={e=>{e.target.style.borderColor="";}}/>
+        <button onClick={()=>setConfirmDel(i)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--md-sys-color-outline)",padding:"4px",borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} onMouseEnter={e=>{e.currentTarget.style.background="var(--md-sys-color-error-container)";e.currentTarget.style.color="var(--md-sys-color-error)";}} onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color="var(--md-sys-color-outline)";}}><span className="msi" style={{fontSize:18}}>close</span></button>
+      </div>))}
+      {list.length===0&&<div style={{padding:"24px 0",textAlign:"center",color:"var(--md-sys-color-outline)",fontSize:14}}>No devices</div>}
+    </div>
+    <div style={{padding:"16px 24px 24px",borderTop:"1px solid var(--md-sys-color-outline-variant)",display:"flex",justifyContent:"flex-end",gap:8}}>
+      <Btn ghost onClick={onClose}>Cancel</Btn>
+      <Btn accent onClick={()=>onSave(list)}>Save</Btn>
+    </div>
+    {confirmDel!==null&&(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.32)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setConfirmDel(null)}><div style={{background:"var(--md-sys-color-surface)",borderRadius:"var(--md-sys-shape-lg)",boxShadow:"var(--md-sys-elevation-2)",width:340,padding:"24px 24px 16px",fontFamily:"inherit"}} onClick={e=>e.stopPropagation()}><div style={{fontSize:14,color:"var(--md-sys-color-on-surface)",marginBottom:24}}>「{list[confirmDel]||""}」を削除しますか？このデバイスのScreenもすべて削除されます。</div><div style={{display:"flex",justifyContent:"flex-end",gap:8}}><Btn ghost onClick={()=>setConfirmDel(null)}>いいえ</Btn><Btn danger onClick={()=>{del(confirmDel);setConfirmDel(null);}}>はい</Btn></div></div></div>)}
+  </div></div>);
+}
+
 /* ===== ScreenView ===== */
-const DEVICES=["mobile","tablet","desktop"];
 const DEVICE_ICONS={mobile:"smartphone",tablet:"tablet",desktop:"desktop_windows"};
 // Screenカード定数
 const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR_MIN_W=200;
@@ -270,10 +299,12 @@ const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR
 const scrCardSize=(sc,views,objects)=>{const panes=(sc.paneIds||[]).map(pid=>views.find(v=>v.id===pid)).filter(Boolean);const pw=panes.reduce((mx,vw)=>{const lbl=viewLabel(vw,objects);return Math.max(mx,labelWidth(lbl)+40);},0);const w=Math.max(SCR_MIN_W,pw+SCR_PANE_PAD*2+SCR_PAD*2);const bodyH=panes.length>0?(panes.length*SCR_PANE_H+(panes.length-1)*SCR_PANE_GAP+SCR_PANE_PAD*2):48;return{w,h:SCR_HEADER_H+bodyH};};
 
 function ScreenView({model,setModel,setModelSilent}){
+  const devices=model.devices||["mobile","desktop"];
   const[selId,setSelId]=useState(null);
-  const[deviceTab,setDeviceTab]=useState("mobile");
+  const[deviceTab,setDeviceTab]=useState(()=>devices[0]||"mobile");
+  const[showDeviceEdit,setShowDeviceEdit]=useState(false);
   const[drag,setDrag]=useState(null);
-  const{svgRef,pan,setPan}=useInitialPan((model.screens||[]).filter(s=>(s.device||"mobile")===deviceTab),SCR_MIN_W,100,loadGenRef);
+  const{svgRef,pan,setPan}=useInitialPan((model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),SCR_MIN_W,100,loadGenRef);
   const[panning,setPanning]=useState(false);
   const[zoom,setZoom]=useState(1);
   const dOff=useRef({x:0,y:0}),panStart=useRef({x:0,y:0,px:0,py:0});
@@ -283,11 +314,12 @@ function ScreenView({model,setModel,setModelSilent}){
   const updScreen=patch=>setModel(m=>({...m,screens:m.screens.map(s=>s.id===selId?{...s,...patch}:s)}));
   const delScreen=()=>{setSelId(null);setModel(m=>({...m,screens:m.screens.filter(s=>s.id!==selId)}));};
   const togglePane=pid=>{if(!selScreen)return;const cur=selScreen.paneIds||[];const next=cur.includes(pid)?cur.filter(x=>x!==pid):[...cur,pid];updScreen({paneIds:next});};
+  const handleDeviceSave=(newDevices)=>{setModel(m=>{const removed=new Set((m.devices||[]).filter(d=>!newDevices.includes(d)));return{...m,devices:newDevices,screens:m.screens.filter(s=>!removed.has(s.device))};});if(!newDevices.includes(deviceTab))setDeviceTab(newDevices[0]||"");setShowDeviceEdit(false);};
 
   // デバイスごとにグルーピング
   const byDevice={};
-  DEVICES.forEach(d=>{byDevice[d]=[];});
-  (model.screens||[]).forEach(sc=>{const d=sc.device||"mobile";if(!byDevice[d])byDevice[d]=[];byDevice[d].push(sc);});
+  devices.forEach(d=>{byDevice[d]=[];});
+  (model.screens||[]).forEach(sc=>{const d=sc.device||devices[0];if(byDevice[d])byDevice[d].push(sc);});
   const items=byDevice[deviceTab]||[];
 
   // キャンバス操作
@@ -300,8 +332,8 @@ function ScreenView({model,setModel,setModelSilent}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{background:M3.surface,display:"flex",alignItems:"stretch",flexShrink:0,paddingLeft:16,minHeight:48,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
-        {DEVICES.map(d=>{const isAct=deviceTab===d;const cnt=byDevice[d].length;return<button key={d} onClick={()=>setDeviceTab(d)} style={{padding:"0 20px",border:"none",background:"transparent",cursor:"pointer",color:isAct?"#1A73E8":"#9AA0A6",fontSize:14,fontWeight:isAct?500:400,borderBottom:`3px solid ${isAct?"#1A73E8":"transparent"}`,borderTop:"3px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}><span className="msi" style={{fontSize:18}}>{DEVICE_ICONS[d]}</span>{d}{cnt>0&&<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,padding:"0 6px",borderRadius:"var(--md-sys-shape-full)",background:isAct?"#D3E3FD":"#E8EAED",color:isAct?"#041E49":"#5F6368",fontSize:11,fontWeight:600,lineHeight:1}}>{cnt}</span>}</button>;})}
-        <div style={{flex:1}}/>
+        {devices.map(d=>{const isAct=deviceTab===d;const cnt=(byDevice[d]||[]).length;return<button key={d} onClick={()=>setDeviceTab(d)} style={{padding:"0 20px",border:"none",background:"transparent",cursor:"pointer",color:isAct?"#1A73E8":"#9AA0A6",fontSize:14,fontWeight:isAct?500:400,borderBottom:`3px solid ${isAct?"#1A73E8":"transparent"}`,borderTop:"3px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}><span className="msi" style={{fontSize:18}}>{DEVICE_ICONS[d]||"devices"}</span>{d}{cnt>0&&<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,padding:"0 6px",borderRadius:"var(--md-sys-shape-full)",background:isAct?"#D3E3FD":"#E8EAED",color:isAct?"#041E49":"#5F6368",fontSize:11,fontWeight:600,lineHeight:1}}>{cnt}</span>}</button>;})}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:16,gap:8}}><Btn small ghost onClick={()=>setShowDeviceEdit(true)}>Edit</Btn></div>
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{flex:1,position:"relative",overflow:"hidden"}}>
@@ -381,6 +413,7 @@ function ScreenView({model,setModel,setModelSilent}){
         </div>
       );})()}
       </div>
+      {showDeviceEdit&&<DeviceEditModal devices={devices} onSave={handleDeviceSave} onClose={()=>setShowDeviceEdit(false)}/>}
     </div>
   );
 }
