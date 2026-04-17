@@ -5,7 +5,7 @@ description: HTMLエディタをブラウザで開き、product-model.jsonを視
 
 # /edit
 
-HTMLエディタをブラウザで開く。エディタ上でオブジェクト・ビュー・遷移を視覚的に編集できる。
+HTMLエディタをブラウザで開く。エディタ上でオブジェクト・ペイン・Pane Graph・スクリーンを視覚的に編集できる。
 
 ## Output
 
@@ -32,7 +32,8 @@ product-model.json をエディタにドラッグ&ドロップ、
 または「Connect」ボタンから読み込んでください。
 
 - Object タブ: オブジェクト・リレーションを編集
-- View タブ: ビュー・遷移を編集
+- Pane タブ: ペイン・Pane Graph（drilldown/embed）を編集
+- Screen タブ: デバイスごとのペイン構成を編集
 - 編集が完了したら教えてください
 ```
 
