@@ -377,12 +377,17 @@ function ScreenView({model,setModel,setModelSilent,onSelChange}){
             );})}
             {/* Screen間の辺（paneGraphからScreen接続を導出、同一方向の重複排除） */}
             {(()=>{
-              // Pane→所属Screen一覧マップ（1つのPaneが複数Screenに含まれうる）
+              // Pane→所属Screen一覧マップ
               const paneToScrs={};
               items.forEach(sc=>{(sc.paneIds||[]).forEach(pid=>{if(!paneToScrs[pid])paneToScrs[pid]=[];paneToScrs[pid].push(sc.id);});});
+              // Object+Type→所属Screen一覧マップ（embed用: 同じObject・同じtypeのPaneを同一視）
+              const objTypeToScrs={};
+              items.forEach(sc=>{(sc.paneIds||[]).forEach(pid=>{const vw=model.views.find(v=>v.id===pid);if(!vw)return;const k=vw.objectId+":"+vw.type;if(!objTypeToScrs[k])objTypeToScrs[k]=new Set();objTypeToScrs[k].add(sc.id);});});
+              // PaneのObject+Typeキーを取得
+              const paneObjType=pid=>{const vw=model.views.find(v=>v.id===pid);return vw?vw.objectId+":"+vw.type:null;};
               // Screen間接続を導出（同一方向ペアの重複排除）
               const seen=new Set();const lines=[];
-              (model.paneGraph||[]).forEach(edge=>{const isEmbed=(edge.type||"drilldown")==="embed";const fromScrs=paneToScrs[edge.from]||[],toScrs=paneToScrs[edge.to]||[];fromScrs.forEach(fid=>{toScrs.forEach(tid=>{if(fid===tid)return;const dKey=fid+">"+tid;const uKey=fid<tid?fid+":"+tid:tid+":"+fid;const key=isEmbed?uKey:dKey;if(seen.has(key))return;seen.add(key);lines.push({fid,tid,key,isEmbed});});});});
+              (model.paneGraph||[]).forEach(edge=>{const isEmbed=(edge.type||"drilldown")==="embed";if(isEmbed){const fk=paneObjType(edge.from),tk=paneObjType(edge.to);if(!fk||!tk)return;const fScrs=[...(objTypeToScrs[fk]||[])],tScrs=[...(objTypeToScrs[tk]||[])];fScrs.forEach(fid=>{tScrs.forEach(tid=>{if(fid===tid)return;const uKey=fid<tid?fid+":"+tid:tid+":"+fid;if(seen.has(uKey))return;seen.add(uKey);lines.push({fid,tid,key:uKey,isEmbed:true});});});}else{const fromScrs=paneToScrs[edge.from]||[],toScrs=paneToScrs[edge.to]||[];fromScrs.forEach(fid=>{toScrs.forEach(tid=>{if(fid===tid)return;const dKey=fid+">"+tid;if(seen.has(dKey))return;seen.add(dKey);lines.push({fid,tid,key:dKey,isEmbed:false});});});}});
               return lines.map(({fid,tid,key,isEmbed})=>{const sf=items.find(s=>s.id===fid),st=items.find(s=>s.id===tid);if(!sf||!st)return null;const sfSize=scrCardSize(sf,model.views,model.objects),stSize=scrCardSize(st,model.views,model.objects);const f=edgePt(sf.x||0,sf.y||0,sfSize.w,sfSize.h,(st.x||0)+stSize.w/2,(st.y||0)+stSize.h/2),t=edgePt(st.x||0,st.y||0,stSize.w,stSize.h,(sf.x||0)+sfSize.w/2,(sf.y||0)+sfSize.h/2);return<line key={`se-${key}`} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="#9AA0A6" strokeWidth={1.5} markerEnd={isEmbed?undefined:"url(#scrarr)"}/>;});
             })()}
             </g>
