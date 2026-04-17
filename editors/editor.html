@@ -301,7 +301,7 @@ function ScreenView({model,setModel,setModelSilent}){
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{background:M3.surface,display:"flex",alignItems:"stretch",flexShrink:0,paddingLeft:16,minHeight:48,boxShadow:"var(--md-sys-elevation-1)",position:"relative",zIndex:1}}>
         {DEVICES.map(d=>{const isAct=deviceTab===d;const cnt=byDevice[d].length;return<button key={d} onClick={()=>setDeviceTab(d)} style={{padding:"0 20px",border:"none",background:"transparent",cursor:"pointer",color:isAct?"#1A73E8":"#9AA0A6",fontSize:14,fontWeight:isAct?500:400,borderBottom:`3px solid ${isAct?"#1A73E8":"transparent"}`,borderTop:"3px solid transparent",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}><span className="msi" style={{fontSize:18}}>{DEVICE_ICONS[d]}</span>{d}{cnt>0&&<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,padding:"0 6px",borderRadius:"var(--md-sys-shape-full)",background:isAct?"#D3E3FD":"#E8EAED",color:isAct?"#041E49":"#5F6368",fontSize:11,fontWeight:600,lineHeight:1}}>{cnt}</span>}</button>;})}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",paddingRight:16}}><Btn small onClick={addScreen}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add</span> Screen</span></Btn></div>
+        <div style={{flex:1}}/>
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{flex:1,position:"relative",overflow:"hidden"}}>
@@ -350,6 +350,7 @@ function ScreenView({model,setModel,setModelSilent}){
             })()}
             </g>
           </svg>
+          <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addScreen}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> Screen</span></Btn></div>
           <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.max(ZOOM_MIN,z*0.8);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>−</button>
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx,y:wy-cy});return 1;});}} style={{minWidth:48,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:"#5F6368",borderRadius:14,fontFamily:"inherit"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>{Math.round(zoom*100)}%</button>
