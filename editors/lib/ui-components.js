@@ -172,6 +172,7 @@
     var onWheel = useCallback(function(e) {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
+        if (!svgRef.current) return;
         var r = svgRef.current.getBoundingClientRect();
         var mx = e.clientX - r.left, my = e.clientY - r.top;
         var d = e.deltaY > 0 ? 0.92 : 1.08;
