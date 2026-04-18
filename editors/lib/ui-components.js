@@ -139,6 +139,14 @@
     var editValueState = useState(''), editValue = editValueState[0], setEditValue = editValueState[1];
     var menuState = useState(null), menuId = menuState[0], setMenuId = menuState[1];
 
+    // メニューが開いているときにドキュメント全体のクリックで閉じる
+    useEffect(function() {
+      if (!menuId) return;
+      function close() { setMenuId(null); }
+      document.addEventListener('click', close);
+      return function() { document.removeEventListener('click', close); };
+    }, [menuId]);
+
     function startRename(v) { setEditing(v.id); setEditValue(v.name); setMenuId(null); }
     function commitRename() {
       if (editing && editValue.trim()) { onRename(editing, editValue.trim()); }

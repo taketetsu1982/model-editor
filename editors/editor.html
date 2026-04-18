@@ -517,14 +517,15 @@ function App(){
 
   const effectiveSetModel=isVariantMode(model)?setActiveModel:setModel;
 
-  const effectiveSetModelSilent=isVariantMode(model)?
-    (updater)=>{setModelSilent(m=>{
+  const setActiveModelSilent=useCallback((updater)=>{
+    setModelSilent(m=>{
       if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
       const active=getActiveVariant(m);
       const updated=typeof updater==='function'?updater(active):updater;
       return updateVariantData(m,active.id,updated);
-    });}
-    :setModelSilent;
+    });
+  },[setModelSilent]);
+  const effectiveSetModelSilent=isVariantMode(model)?setActiveModelSilent:setModelSilent;
 
   // Split View状態
   const[splitMode,setSplitMode]=useState(null); // null | { left: variantId, right: variantId }
