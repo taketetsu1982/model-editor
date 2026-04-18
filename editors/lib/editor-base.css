@@ -48,7 +48,8 @@ body{font-family:'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif;colo
 
 /* --- バリアント サブタブバー --- */
 .variant-bar{display:flex;align-items:stretch;padding:0 16px;background:var(--md-sys-color-surface-container-low);border-bottom:1px solid var(--md-sys-color-outline-variant);min-height:36px}
-.variant-tab{position:relative;display:flex;align-items:center;gap:6px;padding:0 12px;border:none;border-bottom:2px solid transparent;border-top:2px solid transparent;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--md-sys-color-on-surface-variant);font-family:inherit;transition:color .15s;white-space:nowrap}
+.variant-tab{position:relative;display:flex;align-items:center;gap:6px;width:120px;padding:0 12px;border:none;border-bottom:2px solid transparent;border-top:2px solid transparent;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--md-sys-color-on-surface-variant);font-family:inherit;transition:color .15s;white-space:nowrap;box-sizing:border-box}
+.variant-tab>span:first-child{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .variant-tab:hover{color:var(--md-sys-color-on-surface)}
 .variant-tab.active{color:var(--md-sys-color-primary);border-bottom-color:var(--md-sys-color-primary)}
 .variant-action-btn{padding:4px 12px;border-radius:var(--md-sys-shape-full);border:1px solid var(--md-sys-color-outline-variant);background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--md-sys-color-on-surface-variant);font-family:inherit;transition:background .15s}
