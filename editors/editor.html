@@ -424,112 +424,10 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   );
 }
 
-/* ===== 統合App ===== */
-const TABS=[{id:"object",label:"Object"},{id:"pane",label:"Pane"},{id:"screen",label:"Screen"}];
-
-function App(){
-  const{data:model,setData:setModel,setDataSilent:setModelSilent,undo,redo,reset:resetHistory,histRef,dirtyRef}=useHistory(EMPTY,showToast);
-  const[tab,setTab]=useState("object");
-  // タブごとのzoom/pan状態を保持
-  const tabViewState=useRef({object:{zoom:null,pan:null},pane:{zoom:null,pan:null},screen:{zoom:null,pan:null}});
-  const[objSelId,setObjSelId]=useState(null);
-  const[selRelId,setSelRelId]=useState(null);
+/* ===== useClipboard フック ===== */
+// クリップボード操作（コピー/ペースト/カット/削除/全選択/複製/矢印移動）を集約
+function useClipboard({tab, model, activeModel, setModel, effectiveSetModel, histRef, objSelId, setObjSelId, selRelId, setSelRelId, mapSelRef, scrSelRef}){
   const clipRef=useRef(null);
-  // マップビューからの選択状態参照用
-  const mapSelRef=useRef({vwId:null,navId:null});
-  const setMapSelRef=(vwId,navId)=>{mapSelRef.current={vwId,navId};};
-  const scrSelRef=useRef(null);
-  const setScrSelRef=id=>{scrSelRef.current=id;};
-
-  // --- バリアント管理 ---
-  const variantList=isVariantMode(model)?getVariantList(model):[];
-  const activeVariant=isVariantMode(model)?getActiveVariant(model):null;
-  const activeModel=activeVariant||model;
-
-  const handleDuplicate=useCallback(()=>{
-    setModel(m=>toVariantMode(m));
-    showToast('Duplicated');
-  },[setModel]);
-
-  const handleKeep=useCallback(()=>{
-    if(!activeVariant)return;
-    if(!window.confirm('「'+activeVariant.name+'」を採用し、他のバリアントを削除します。よろしいですか？'))return;
-    setModel(m=>keepVariant(m,activeVariant.id));
-    setSplitMode(null);
-    showToast('Kept: '+activeVariant.name);
-  },[setModel,activeVariant]);
-
-  const handleDeleteVariant=useCallback((variantId)=>{
-    const v=variantList.find(v=>v.id===variantId);
-    if(!window.confirm('「'+(v?.name||variantId)+'」を削除しますか？'))return;
-    setModel(m=>deleteVariant(m,variantId));
-    if(splitMode&&(splitMode.left===variantId||splitMode.right===variantId))setSplitMode(null);
-    showToast('Deleted variant');
-  },[setModel,variantList,splitMode]);
-
-  const handleSwitchVariant=useCallback((variantId)=>{
-    setModel(m=>switchVariant(m,variantId));
-  },[setModel]);
-
-  const handleRenameVariant=useCallback((variantId,newName)=>{
-    setModel(m=>renameVariant(m,variantId,newName));
-  },[setModel]);
-
-  // バリアントモード時のsetModel: アクティブバリアントのデータだけ更新（variantIdを履歴に記録）
-  const setActiveModel=useCallback((updater)=>{
-    setModel(m=>{
-      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
-      const active=getActiveVariant(m);
-      const updated=typeof updater==='function'?updater(active):updater;
-      return updateVariantData(m,active.id,updated);
-    }, activeVariant?.id);
-  },[setModel,activeVariant]);
-
-  const inVariantMode=isVariantMode(model);
-  const effectiveSetModel=useMemo(()=>inVariantMode?setActiveModel:setModel,[inVariantMode,setActiveModel,setModel]);
-
-  const setActiveModelSilent=useCallback((updater)=>{
-    setModelSilent(m=>{
-      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
-      const active=getActiveVariant(m);
-      const updated=typeof updater==='function'?updater(active):updater;
-      return updateVariantData(m,active.id,updated);
-    });
-  },[setModelSilent]);
-  const effectiveSetModelSilent=useMemo(()=>inVariantMode?setActiveModelSilent:setModelSilent,[inVariantMode,setActiveModelSilent,setModelSilent]);
-
-  // Split View状態
-  const[splitMode,setSplitMode]=useState(null); // null | { left: variantId, right: variantId }
-  const[splitPicking,setSplitPicking]=useState(null); // null | { selected: [] }
-
-  // Split View用: バリアントIDからモデルデータを取得
-  const getVariantModel=useCallback((variantId)=>{
-    if(!isVariantMode(model))return model;
-    const v=model._variants.find(v=>v.id===variantId);
-    return v||activeModel;
-  },[model,activeModel]);
-
-  // Split View用: バリアントIDを指定してモデルを更新（variantIdを履歴に記録）
-  const setVariantModel=useCallback((variantId)=>(updater)=>{
-    setModel(m=>{
-      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
-      const v=m._variants.find(v=>v.id===variantId);
-      if(!v)return m;
-      const updated=typeof updater==='function'?updater(v):updater;
-      return updateVariantData(m,variantId,updated);
-    }, variantId);
-  },[setModel]);
-
-  // Split View用: Silent版（ドラッグ操作時にhistoryエントリを作らない）
-  const setVariantModelSilent=useCallback((variantId)=>(updater)=>{
-    setModelSilent(m=>{
-      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
-      const v=m._variants.find(v=>v.id===variantId);
-      if(!v)return m;
-      const updated=typeof updater==='function'?updater(v):updater;
-      return updateVariantData(m,variantId,updated);
-    });
-  },[setModelSilent]);
 
   // コピー: objectタブではオブジェクト、viewタブではビューをコピー
   const handleCopy=useCallback(()=>{
@@ -673,29 +571,6 @@ function App(){
     return false;
   },[tab,objSelId,selRelId,model,setModel]);
 
-  // Undo/Redoでバリアント自動切替（Splitモード時は閉じる）
-  // useHistoryがfull model（_variants含む）を復元するため、activeフラグも自動で戻る。
-  // Split中に異なるバリアントの操作が復元された場合はSplitを閉じる。
-  // stale closure回避: undoの返すvariantIdと、復元前のactiveを直接比較せず、
-  // splitMode中かつvariantIdが返された場合はsplitModeのleft/rightに含まれるかで判定。
-  const handleUndo=useCallback(()=>{
-    const targetVid=undo();
-    if(targetVid && splitMode){
-      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
-        setSplitMode(null);
-      }
-    }
-  },[undo,splitMode]);
-
-  const handleRedo=useCallback(()=>{
-    const targetVid=redo();
-    if(targetVid && splitMode){
-      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
-        setSplitMode(null);
-      }
-    }
-  },[redo,splitMode]);
-
   // 全選択
   const handleSelectAll=useCallback(()=>{
     if(tab==='object'){
@@ -787,7 +662,12 @@ function App(){
     return false;
   },[tab,objSelId,effectiveSetModel]);
 
-  // グローバル関数登録
+  return{handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection};
+}
+
+/* ===== useGlobalKeys フック ===== */
+// グローバルwindow関数の登録・解除を管理
+function useGlobalKeys({handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection}){
   useEffect(()=>{
     window.__edUndo=handleUndo;window.__edRedo=handleRedo;
     window.__edCopy=handleCopy;window.__edPaste=handlePaste;
@@ -795,6 +675,138 @@ function App(){
     window.__edSelectAll=handleSelectAll;window.__edDuplicateItem=handleDuplicateItem;window.__edMoveSelection=handleMoveSelection;
     return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=window.__edSelectAll=window.__edDuplicateItem=window.__edMoveSelection=null;};
   },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection]);
+}
+
+/* ===== 統合App ===== */
+const TABS=[{id:"object",label:"Object"},{id:"pane",label:"Pane"},{id:"screen",label:"Screen"}];
+
+function App(){
+  const{data:model,setData:setModel,setDataSilent:setModelSilent,undo,redo,reset:resetHistory,histRef,dirtyRef}=useHistory(EMPTY,showToast);
+  const[tab,setTab]=useState("object");
+  // タブごとのzoom/pan状態を保持
+  const tabViewState=useRef({object:{zoom:null,pan:null},pane:{zoom:null,pan:null},screen:{zoom:null,pan:null}});
+  const[objSelId,setObjSelId]=useState(null);
+  const[selRelId,setSelRelId]=useState(null);
+  // マップビューからの選択状態参照用
+  const mapSelRef=useRef({vwId:null,navId:null});
+  const setMapSelRef=(vwId,navId)=>{mapSelRef.current={vwId,navId};};
+  const scrSelRef=useRef(null);
+  const setScrSelRef=id=>{scrSelRef.current=id;};
+
+  // --- バリアント管理 ---
+  const variantList=isVariantMode(model)?getVariantList(model):[];
+  const activeVariant=isVariantMode(model)?getActiveVariant(model):null;
+  const activeModel=activeVariant||model;
+
+  const handleDuplicate=useCallback(()=>{
+    setModel(m=>toVariantMode(m));
+    showToast('Duplicated');
+  },[setModel]);
+
+  const handleKeep=useCallback(()=>{
+    if(!activeVariant)return;
+    if(!window.confirm('「'+activeVariant.name+'」を採用し、他のバリアントを削除します。よろしいですか？'))return;
+    setModel(m=>keepVariant(m,activeVariant.id));
+    setSplitMode(null);
+    showToast('Kept: '+activeVariant.name);
+  },[setModel,activeVariant]);
+
+  const handleDeleteVariant=useCallback((variantId)=>{
+    const v=variantList.find(v=>v.id===variantId);
+    if(!window.confirm('「'+(v?.name||variantId)+'」を削除しますか？'))return;
+    setModel(m=>deleteVariant(m,variantId));
+    if(splitMode&&(splitMode.left===variantId||splitMode.right===variantId))setSplitMode(null);
+    showToast('Deleted variant');
+  },[setModel,variantList,splitMode]);
+
+  const handleSwitchVariant=useCallback((variantId)=>{
+    setModel(m=>switchVariant(m,variantId));
+  },[setModel]);
+
+  const handleRenameVariant=useCallback((variantId,newName)=>{
+    setModel(m=>renameVariant(m,variantId,newName));
+  },[setModel]);
+
+  // バリアントモード時のsetModel: アクティブバリアントのデータだけ更新（variantIdを履歴に記録）
+  const setActiveModel=useCallback((updater)=>{
+    setModel(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const active=getActiveVariant(m);
+      const updated=typeof updater==='function'?updater(active):updater;
+      return updateVariantData(m,active.id,updated);
+    }, activeVariant?.id);
+  },[setModel,activeVariant]);
+
+  const inVariantMode=isVariantMode(model);
+  const effectiveSetModel=useMemo(()=>inVariantMode?setActiveModel:setModel,[inVariantMode,setActiveModel,setModel]);
+
+  const setActiveModelSilent=useCallback((updater)=>{
+    setModelSilent(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const active=getActiveVariant(m);
+      const updated=typeof updater==='function'?updater(active):updater;
+      return updateVariantData(m,active.id,updated);
+    });
+  },[setModelSilent]);
+  const effectiveSetModelSilent=useMemo(()=>inVariantMode?setActiveModelSilent:setModelSilent,[inVariantMode,setActiveModelSilent,setModelSilent]);
+
+  // Split View状態
+  const[splitMode,setSplitMode]=useState(null); // null | { left: variantId, right: variantId }
+  const[splitPicking,setSplitPicking]=useState(null); // null | { selected: [] }
+
+  // Split View用: バリアントIDからモデルデータを取得
+  const getVariantModel=useCallback((variantId)=>{
+    if(!isVariantMode(model))return model;
+    const v=model._variants.find(v=>v.id===variantId);
+    return v||activeModel;
+  },[model,activeModel]);
+
+  // Split View用: バリアントIDを指定してモデルを更新（variantIdを履歴に記録）
+  const setVariantModel=useCallback((variantId)=>(updater)=>{
+    setModel(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    }, variantId);
+  },[setModel]);
+
+  // Split View用: Silent版（ドラッグ操作時にhistoryエントリを作らない）
+  const setVariantModelSilent=useCallback((variantId)=>(updater)=>{
+    setModelSilent(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    });
+  },[setModelSilent]);
+
+  // Undo/Redoでバリアント自動切替（Splitモード時は閉じる）
+  const handleUndo=useCallback(()=>{
+    const targetVid=undo();
+    if(targetVid && splitMode){
+      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[undo,splitMode]);
+
+  const handleRedo=useCallback(()=>{
+    const targetVid=redo();
+    if(targetVid && splitMode){
+      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[redo,splitMode]);
+
+  // クリップボード操作フック
+  const{handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection}=useClipboard({tab,model,activeModel,setModel,effectiveSetModel,histRef,objSelId,setObjSelId,selRelId,setSelRelId,mapSelRef,scrSelRef});
+
+  // グローバル関数登録フック
+  useGlobalKeys({handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection});
 
   // データ変更検知
   useEffect(()=>{dataRef=model;if(dirtyRef.current){dirtyRef.current=false;markModified();}},[model]);
