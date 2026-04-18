@@ -343,16 +343,6 @@
       "y": 273
     },
     {
-      "id": "my-tasks-mobile",
-      "name": "マイタスク",
-      "device": "mobile",
-      "paneIds": [
-        "my-task-collection"
-      ],
-      "x": -310,
-      "y": -15
-    },
-    {
       "id": "my-tasks-desktop",
       "name": "マイタスク",
       "device": "desktop",
@@ -372,6 +362,16 @@
       ],
       "x": -13,
       "y": 141.5
+    },
+    {
+      "id": "ndg5m9",
+      "name": "マイタスク",
+      "device": "mobile",
+      "paneIds": [
+        "my-task-collection"
+      ],
+      "x": -885,
+      "y": -234.5
     }
   ]
 }
