@@ -130,10 +130,11 @@
   }
 
   // バリアント サブタブバー
-  // props: { variants, onSwitch, onDuplicate, onDelete, onRename, onSplit, onKeep }
+  // props: { variants, onSwitch, onDuplicate, onDelete, onRename, onSplit, onKeep, isSplit }
   function VariantBar(props) {
     var variants = props.variants, onSwitch = props.onSwitch, onDuplicate = props.onDuplicate;
     var onDelete = props.onDelete, onRename = props.onRename, onSplit = props.onSplit, onKeep = props.onKeep;
+    var isSplit = props.isSplit;
     var editingState = useState(null), editing = editingState[0], setEditing = editingState[1];
     var editValueState = useState(''), editValue = editValueState[0], setEditValue = editValueState[1];
 
@@ -144,6 +145,13 @@
     }
 
     if (!variants || variants.length === 0) return null;
+
+    // Splitモード中: タブ・Duplicate・Keepを非表示、Split解除ボタンのみ
+    if (isSplit) {
+      return h("div", { className: "variant-bar" },
+        h("button", { className: "variant-action-btn", onClick: onSplit, style: { color: "var(--md-sys-color-primary)", borderColor: "var(--md-sys-color-primary)" } }, "Exit Split")
+      );
+    }
 
     var tabs = variants.map(function(v) {
       if (editing === v.id) {

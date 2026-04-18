@@ -787,6 +787,7 @@ function App(){
       </div>
       {variantList.length>0&&<VariantBar
         variants={variantList}
+        isSplit={!!splitMode}
         onSwitch={handleSwitchVariant}
         onDuplicate={handleDuplicate}
         onDelete={handleDeleteVariant}
