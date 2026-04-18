@@ -52,9 +52,13 @@ body{font-family:'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif;colo
 .variant-tab:hover{background:var(--md-sys-color-surface-container)}
 .variant-tab.active{background:var(--md-sys-color-primary-container);color:var(--md-sys-color-on-primary-container);border-color:var(--md-sys-color-outline-variant)}
 .variant-tab .variant-close{display:none;margin-left:4px;font-size:14px;opacity:.5;cursor:pointer;line-height:1}
-.variant-tab:hover .variant-close{display:inline}
-.variant-tab .variant-close:hover{opacity:1}
 .variant-bar-actions{margin-left:auto;display:flex;gap:4px;align-items:center}
 .variant-action-btn{padding:4px 12px;border-radius:var(--md-sys-shape-full);border:1px solid var(--md-sys-color-outline-variant);background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--md-sys-color-on-surface-variant);font-family:inherit;transition:background .15s}
 .variant-action-btn:hover{background:var(--md-sys-color-surface-container)}
-.variant-action-btn.keep{color:var(--md-sys-color-primary);border-color:var(--md-sys-color-primary)}
+.variant-more-btn{border:none;background:transparent;cursor:pointer;font-size:16px;color:var(--md-sys-color-on-surface-variant);padding:0 4px;line-height:1;border-radius:var(--md-sys-shape-full);transition:background .15s}
+.variant-more-btn:hover{background:var(--md-sys-color-surface-container)}
+.variant-menu{position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--md-sys-color-outline-variant);border-radius:var(--md-sys-shape-sm);box-shadow:var(--md-sys-elevation-2);min-width:120px;z-index:20;padding:4px 0}
+.variant-menu-item{display:block;width:100%;padding:6px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--md-sys-color-on-surface);font-family:inherit;text-align:left;transition:background .1s}
+.variant-menu-item:hover{background:var(--md-sys-color-surface-container)}
+.variant-menu-danger{color:var(--md-sys-color-error)}
+.variant-menu-divider{height:1px;background:var(--md-sys-color-outline-variant);margin:4px 0}

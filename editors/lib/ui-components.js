@@ -137,8 +137,9 @@
     var isSplit = props.isSplit;
     var editingState = useState(null), editing = editingState[0], setEditing = editingState[1];
     var editValueState = useState(''), editValue = editValueState[0], setEditValue = editValueState[1];
+    var menuState = useState(null), menuId = menuState[0], setMenuId = menuState[1];
 
-    function startRename(v) { setEditing(v.id); setEditValue(v.name); }
+    function startRename(v) { setEditing(v.id); setEditValue(v.name); setMenuId(null); }
     function commitRename() {
       if (editing && editValue.trim()) { onRename(editing, editValue.trim()); }
       setEditing(null);
@@ -146,7 +147,7 @@
 
     if (!variants || variants.length === 0) return null;
 
-    // Splitモード中: タブ・Duplicate・Keepを非表示、Split解除ボタンのみ
+    // Splitモード中: Split解除ボタンのみ
     if (isSplit) {
       return h("div", { className: "variant-bar" },
         h("button", { className: "variant-action-btn", onClick: onSplit, style: { color: "var(--md-sys-color-primary)", borderColor: "var(--md-sys-color-primary)" } }, "Exit Split")
@@ -155,7 +156,7 @@
 
     var tabs = variants.map(function(v) {
       if (editing === v.id) {
-        return h("div", { key: v.id, className: "variant-tab active" },
+        return h("div", { key: v.id, className: "variant-tab active", style: { position: "relative" } },
           h("input", {
             value: editValue, autoFocus: true,
             onChange: function(e) { setEditValue(e.target.value); },
@@ -165,23 +166,36 @@
           })
         );
       }
-      return h("button", {
-        key: v.id,
-        className: "variant-tab" + (v.active ? " active" : ""),
-        onClick: function() { onSwitch(v.id); },
-        onDoubleClick: function() { startRename(v); }
-      },
-        v.name,
-        variants.length > 1 ? h("span", { className: "variant-close", onClick: function(e) { e.stopPropagation(); onDelete(v.id); } }, "\u00d7") : null
+      var isActive = v.active;
+      return h("div", { key: v.id, style: { position: "relative", display: "flex", alignItems: "center" } },
+        h("button", {
+          className: "variant-tab" + (isActive ? " active" : ""),
+          onClick: function() { onSwitch(v.id); setMenuId(null); },
+          onDoubleClick: function() { startRename(v); }
+        }, v.name),
+        // アクティブタブに ⋯ ボタンを表示
+        isActive ? h("button", {
+          className: "variant-more-btn",
+          onClick: function(e) { e.stopPropagation(); setMenuId(menuId === v.id ? null : v.id); }
+        }, "\u22EF") : null,
+        // ⋯ メニュー（ポップオーバー）
+        menuId === v.id ? h("div", {
+          className: "variant-menu",
+          onClick: function(e) { e.stopPropagation(); }
+        },
+          h("button", { className: "variant-menu-item", onClick: function() { setMenuId(null); onDuplicate(); } }, "Duplicate"),
+          h("button", { className: "variant-menu-item", onClick: function() { setMenuId(null); onKeep(); } }, "Keep"),
+          variants.length > 1 ? h("button", { className: "variant-menu-item variant-menu-danger", onClick: function() { setMenuId(null); onDelete(v.id); } }, "Delete") : null,
+          h("div", { className: "variant-menu-divider" }),
+          h("button", { className: "variant-menu-item", onClick: function() { startRename(v); } }, "Rename")
+        ) : null
       );
     });
 
-    return h("div", { className: "variant-bar" },
+    return h("div", { className: "variant-bar", onClick: function() { setMenuId(null); } },
       tabs,
-      h("button", { className: "variant-action-btn", onClick: onDuplicate }, "+ Duplicate"),
       h("div", { className: "variant-bar-actions" },
-        variants.length >= 2 ? h("button", { className: "variant-action-btn", onClick: onSplit }, "Split") : null,
-        h("button", { className: "variant-action-btn keep", onClick: onKeep }, "Keep")
+        variants.length >= 2 ? h("button", { className: "variant-action-btn", onClick: onSplit }, "Split") : null
       )
     );
   }
