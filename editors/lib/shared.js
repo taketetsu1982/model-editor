@@ -234,19 +234,24 @@
     }
 
     if (tab === "pane") {
-      var lines = ["flowchart LR"];
-      // ノード定義
+      var lines = ["classDiagram"];
+      // クラス定義（fields=属性、verbs=操作）
       (model.views || []).forEach(function(vw) {
         var on = exports.objName(model.objects || [], vw.objectId);
         var tl = exports.TYPE_LABEL[vw.type] || vw.type;
-        lines.push("    " + vw.id + '["' + on + " " + tl + '"]');
+        var id = "`" + vw.id + "`";
+        lines.push("    class " + id + ' ["' + on + " " + tl + '"]');
+        (vw.fields || []).forEach(function(f) { lines.push("    " + id + " : " + f); });
+        (vw.verbs || []).forEach(function(v) { lines.push("    " + id + " : " + v + "()"); });
       });
       // 辺
       (model.paneGraph || []).forEach(function(e) {
+        var from = "`" + e.from + "`";
+        var to = "`" + e.to + "`";
         if (e.type === "drilldown") {
-          lines.push("    " + e.from + " -->|" + (e.param || "drilldown") + "| " + e.to);
+          lines.push("    " + from + " --> " + to + " : " + (e.param || "drilldown"));
         } else {
-          lines.push("    " + e.from + " --- " + e.to);
+          lines.push("    " + from + " -- embed --> " + to);
         }
       });
       return lines.join("\n");
