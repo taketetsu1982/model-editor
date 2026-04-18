@@ -41,25 +41,8 @@ let passthrough={};
 let dataRef=null;
 
 const DEFAULT_DEVICES=["mobile","desktop"];
-
-function migrateModelData(raw){
-  const objs=raw.objects||[];
-  let migrated=false;
-  objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
-  if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
-  let vwMigrated=false;
-  const vws=(raw.views||[]).map(v=>{
-    if(v.objects&&!v.objectId){
-      vwMigrated=true;
-      const first=v.objects[0];
-      const{objects:_,...rest2}=v;
-      return{...rest2,objectId:first?.objectId||"",type:first?.variant||v.type||"collection",fields:v.fields||[],verbs:v.verbs||[]};
-    }
-    return{...v,fields:v.fields||[],verbs:v.verbs||[]};
-  });
-  if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  return{objects:objs,views:vws,paneGraph:raw.paneGraph||[],screens:raw.screens||[],devices:raw.devices||DEFAULT_DEVICES};
-}
+const migrateModelData=window.__editorLib.migrateModelData;
+const rectsIntersect=window.__editorLib.rectsIntersect;
 
 function splitData(data){
   // バリアントモードの場合
@@ -70,7 +53,7 @@ function splitData(data){
     passthrough=rest;
     // 各バリアント内のデータにマイグレーションを適用
     const migrated=_variants.map(v=>{
-      const sub=migrateModelData(v);
+      const sub=migrateModelData(v,io.showToast);
       return{...v,...sub};
     });
     return{_variants:migrated};
@@ -78,7 +61,7 @@ function splitData(data){
   // 通常モード
   const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
   passthrough=rest;
-  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES});
+  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES},io.showToast);
 }
 
 const io=window.__editorIO.createFileIO({
@@ -105,35 +88,17 @@ io.setupKeyboard();
 <script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
 const{M3,Input,Sel,Btn,SLabel,useInitialPan,useHistory,useCanvas,ZoomControls,VariantBar}=window.__editorUI;
-const{OBJ_PALETTE,ZOOM_MIN,ZOOM_MAX,MAX_HISTORY,uid,uniqueName,edgePt,calcCenterPan,labelWidth}=window.__editorLib;
+const{OBJ_PALETTE,ZOOM_MIN,ZOOM_MAX,MAX_HISTORY,uid,uniqueName,edgePt,calcCenterPan,labelWidth,
+  objPalette,objColor,objName,
+  REL_TYPES,REL_TYPE_LABELS,EW,EH,SELF_REF_X,SELF_REF_Y,SELF_REF_CP,
+  OBJ_GRID_COLS,OBJ_GRID_GAP_X,OBJ_GRID_GAP_Y,OBJ_GRID_PAD_X,OBJ_GRID_PAD_Y,
+  VW_GRID_COLS,VW_GRID_GAP_X,VW_GRID_GAP_Y,VW_GRID_PAD_X,VW_GRID_PAD_Y,
+  SW,SH,SC_HEADER_H,SC_OBJ_START_Y,SC_OBJ_ROW_H,SC_OBJ_PAD_X,
+  VIEW_TYPES,TYPE_LABEL,viewLabel,EMPTY,
+  DEVICE_ICONS,SCR_PAD,SCR_HEADER_H,SCR_PANE_H,SCR_PANE_GAP,SCR_PANE_PAD,SCR_MIN_W,scrCardSize,
+  ensurePositions:_ensurePositions,CIRCLED,circled,
+  ensureViewPositions:_ensureViewPositions}=window.__editorLib;
 const{isVariantMode,toVariantMode,getActiveVariant,switchVariant,keepVariant,deleteVariant,renameVariant,getVariantList,updateVariantData}=window.__variantManager;
-const{ensurePositions:_ensurePositions,CIRCLED,circled}=window.__editorLib;
-const{ensureViewPositions:_ensureViewPositions}=window.__editorLib;
-const objPalette=(objs,id)=>window.__editorLib.objPalette(objs,id);
-const objColor=(objs,id)=>window.__editorLib.objColor(objs,id);
-const objName=(objs,id)=>window.__editorLib.objName(objs,id);
-const REL_TYPES=["has-many","has-one","many-to-many"];
-const REL_TYPE_LABELS={"has-many":"has many","has-one":"has one","many-to-many":"many to many"};
-// オブジェクトノードサイズ
-const EW=200,EH=72;
-// 自己参照カーブ
-const SELF_REF_X=6,SELF_REF_Y=14,SELF_REF_CP=38;
-// グリッドレイアウト（Object）
-const OBJ_GRID_COLS=3,OBJ_GRID_GAP_X=360,OBJ_GRID_GAP_Y=240,OBJ_GRID_PAD_X=80,OBJ_GRID_PAD_Y=80;
-// グリッドレイアウト（View）
-const VW_GRID_COLS=3,VW_GRID_GAP_X=120,VW_GRID_GAP_Y=80,VW_GRID_PAD_X=60,VW_GRID_PAD_Y=60;
-// ビューカードサイズ
-const SW=240,SH=76;
-// カード内部
-const SC_HEADER_H=36,SC_OBJ_START_Y=40,SC_OBJ_ROW_H=22,SC_OBJ_PAD_X=8;
-// ビュー関連定数
-// ビュータイプ定数
-const VIEW_TYPES=["collection","single"];
-const TYPE_LABEL={collection:"Collection",single:"Single"};
-// ビューの表示名: "オブジェクト名 Collection" 等
-const viewLabel=(vw,objs)=>{const on=objName(objs,vw.objectId);const tl=TYPE_LABEL[vw.type]||vw.type;return on+" "+tl;};
-
-const EMPTY={objects:[],views:[],paneGraph:[],screens:[],devices:["mobile","desktop"]};
 function ensurePositions(data){return _ensurePositions(data,{cols:OBJ_GRID_COLS,gapX:OBJ_GRID_GAP_X,gapY:OBJ_GRID_GAP_Y,padX:OBJ_GRID_PAD_X,padY:OBJ_GRID_PAD_Y});}
 function ensureViewPositions(data){return _ensureViewPositions(data,{cols:VW_GRID_COLS,gapX:VW_GRID_GAP_X,gapY:VW_GRID_GAP_Y,padX:VW_GRID_PAD_X,padY:VW_GRID_PAD_Y,paneW:SW,minSpanFactor:160,minSpanMin:200});}
 const loadGenRef={current:0};
@@ -145,7 +110,7 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
   const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
   const hit=new Set();
   (model.objects||[]).forEach(e=>{
-    if(e.x<rect.x+rect.w && e.x+EW>rect.x && e.y<rect.y+rect.h && e.y+EH>rect.y) hit.add(e.id);
+    if(rectsIntersect(e.x,e.y,EW,EH,rect.x,rect.y,rect.w,rect.h)) hit.add(e.id);
   });
   if(hit.size===0)return;
   if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
@@ -218,7 +183,7 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
     const fields=(vw.fields||[]).length;const verbs=(vw.verbs||[]).length;
     const hasContent=fields>0||verbs>0;
     const ch=36+(hasContent?8:40)+fields*22+(verbs>0?verbs*22+8:0)+8;
-    if(vw.x<rect.x+rect.w && vw.x+SW>rect.x && vw.y<rect.y+rect.h && vw.y+ch>rect.y) hit.add(vw.id);
+    if(rectsIntersect(vw.x,vw.y,SW,ch,rect.x,rect.y,rect.w,rect.h)) hit.add(vw.id);
   });
   if(hit.size===0)return;
   if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
@@ -328,12 +293,6 @@ function DeviceEditModal({devices,onSave,onClose}){
 }
 
 /* ===== ScreenView ===== */
-const DEVICE_ICONS={mobile:"smartphone",tablet:"tablet",desktop:"desktop_windows"};
-// Screenカード定数
-const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR_MIN_W=200;
-// Screenカードの幅・高さ計算
-const scrCardSize=(sc,views,objects)=>{const panes=(sc.paneIds||[]).map(pid=>views.find(v=>v.id===pid)).filter(Boolean);const pw=panes.reduce((mx,vw)=>{const lbl=viewLabel(vw,objects);return Math.max(mx,labelWidth(lbl)+40);},0);const w=Math.max(SCR_MIN_W,pw+SCR_PANE_PAD*2+SCR_PAD*2);const bodyH=panes.length>0?(panes.length*SCR_PANE_H+(panes.length-1)*SCR_PANE_GAP+SCR_PANE_PAD*2):48;return{w,h:SCR_HEADER_H+bodyH};};
-
 function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedViewState,onViewStateChange}){
   const devices=model.devices||["mobile","desktop"];
   const[deviceTab,setDeviceTab]=useState(()=>devices[0]||"mobile");
@@ -347,7 +306,7 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   const items2=(model.screens||[]).filter(s=>(s.device||(model.devices||["mobile"])[0])===deviceTab);
   for(var i=0;i<items2.length;i++){
     const sc=items2[i];const{w:cw,h:ch}=scrCardSize(sc,model.views,model.objects);
-    if((sc.x||0)<rect.x+rect.w && (sc.x||0)+cw>rect.x && (sc.y||0)<rect.y+rect.h && (sc.y||0)+ch>rect.y){setSelId(sc.id);return;}
+    if(rectsIntersect(sc.x||0,sc.y||0,cw,ch,rect.x,rect.y,rect.w,rect.h)){setSelId(sc.id);return;}
   }
 },[model.screens,model.views,model.objects,deviceTab])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;
@@ -465,6 +424,259 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   );
 }
 
+/* ===== useClipboard フック ===== */
+// クリップボード操作（コピー/ペースト/カット/削除/全選択/複製/矢印移動）を集約
+function useClipboard({tab, activeModel, effectiveSetModel, objSelId, setObjSelId, selRelId, setSelRelId, mapSelRef, scrSelRef}){
+  const clipRef=useRef(null);
+
+  // コピー: objectタブではオブジェクト、viewタブではビューをコピー
+  const handleCopy=useCallback(()=>{
+    if(tab==='object'){
+      if(!objSelId)return false;
+      const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
+      if(!ent)return false;
+      clipRef.current={type:'object',data:JSON.parse(JSON.stringify(ent))};
+      showToast('Copied: '+ent.name);
+      return true;
+    }
+    if(tab==='pane'){
+      const{vwId}=mapSelRef.current;
+      if(!vwId)return false;
+      const vw=activeModel.views.find(s=>s.id===vwId);
+      if(!vw)return false;
+      clipRef.current={type:'view',data:JSON.parse(JSON.stringify(vw))};
+      showToast('Copied: '+viewLabel(vw,activeModel.objects));
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
+      showToast('Copied: '+sc.name);
+      return true;
+    }
+    return false;
+  },[tab,objSelId,activeModel]);
+
+  // ペースト
+  const handlePaste=useCallback(()=>{
+    if(!clipRef.current)return false;
+    if(tab==='object'&&clipRef.current.type==='object'){
+      const src=clipRef.current.data;
+      const newId=uid();
+      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);const newEnt={...JSON.parse(JSON.stringify(src)),id:newId,name:uniqueName(src.name,names),x:(src.x||80)+40,y:(src.y||80)+40,relations:src.relations.map(r=>({...r,id:uid()}))};return{...m,objects:[...m.objects,newEnt]};});
+      setObjSelId(newId);
+      showToast('Pasted: '+src.name);
+      return true;
+    }
+    if(tab==='pane'&&clipRef.current.type==='view'){
+      const src=clipRef.current.data;
+      const newId=uid();
+      effectiveSetModel(m=>{const newVw={...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40,objectId:src.objectId||"",fields:[...(src.fields||[])],verbs:[...(src.verbs||[])]};delete newVw.objects;delete newVw.name;return{...m,views:[...m.views,newVw]};});
+      showToast('Pasted: '+src.name);
+      return true;
+    }
+    if(tab==='screen'&&clipRef.current.type==='screen'){
+      const src=clipRef.current.data;
+      const newId=uid();
+      effectiveSetModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40}]}));
+      showToast('Pasted: '+src.name);
+      return true;
+    }
+    return false;
+  },[tab,effectiveSetModel]);
+
+  // カット
+  const handleCut=useCallback(()=>{
+    if(tab==='object'){
+      if(!objSelId)return false;
+      const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
+      if(!ent)return false;
+      clipRef.current={type:'object',data:JSON.parse(JSON.stringify(ent))};
+      effectiveSetModel(m=>({...m,objects:m.objects.filter(e=>e.id!==objSelId)}));
+      setObjSelId(null);
+      showToast('Cut: '+ent.name);
+      return true;
+    }
+    if(tab==='pane'){
+      const{vwId}=mapSelRef.current;
+      if(!vwId)return false;
+      const vw=activeModel.views.find(s=>s.id===vwId);
+      if(!vw)return false;
+      clipRef.current={type:'view',data:JSON.parse(JSON.stringify(vw))};
+      effectiveSetModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
+      showToast('Cut: '+viewLabel(vw,activeModel.objects));
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
+      effectiveSetModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
+      showToast('Cut: '+sc.name);
+      return true;
+    }
+    return false;
+  },[tab,objSelId,activeModel,effectiveSetModel]);
+
+  // 削除: タブに応じてオブジェクト/リレーション/ビュー/トランジションを削除
+  const handleDelete=useCallback(()=>{
+    if(tab==='object'){
+      if(selRelId){
+        const owner=activeModel.objects.find(e=>e.id===selRelId.entId);
+        const rel=owner&&owner.relations.find(r=>r.id===selRelId.relId);
+        if(!rel)return false;
+        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>e.id===selRelId.entId?{...e,relations:e.relations.filter(r=>r.id!==selRelId.relId)}:e)}));
+        setSelRelId(null);
+        showToast('Deleted relation');
+        return true;
+      }
+      if(!objSelId)return false;
+      const ent=activeModel.objects.find(e=>e.id===objSelId);
+      if(!ent)return false;
+      effectiveSetModel(m=>({...m,objects:m.objects.filter(e=>e.id!==objSelId)}));
+      setObjSelId(null);
+      showToast('Deleted: '+ent.name);
+      return true;
+    }
+    if(tab==='pane'){
+      const{vwId,navId}=mapSelRef.current;
+      if(navId){
+        const nav=activeModel.paneGraph.find(n=>n.id===navId);
+        if(!nav)return false;
+        effectiveSetModel(m=>({...m,paneGraph:m.paneGraph.filter(n=>n.id!==navId)}));
+        showToast('Deleted edge');
+        return true;
+      }
+      if(!vwId)return false;
+      const vw=activeModel.views.find(s=>s.id===vwId);
+      if(!vw)return false;
+      effectiveSetModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
+      showToast('Deleted: '+viewLabel(vw,activeModel.objects));
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      effectiveSetModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
+      showToast('Deleted: '+sc.name);
+      return true;
+    }
+    return false;
+  },[tab,objSelId,selRelId,activeModel,effectiveSetModel]);
+
+  // 全選択
+  const handleSelectAll=useCallback(()=>{
+    if(tab==='object'){
+      const ids=new Set((activeModel.objects||[]).map(e=>e.id));
+      if(ids.size===0)return false;
+      setObjSelId(null);
+      window.__edSetMultiSel?.(ids);
+      return true;
+    }
+    if(tab==='pane'){
+      const ids=new Set((activeModel.views||[]).map(v=>v.id));
+      if(ids.size===0)return false;
+      window.__edSetMultiSel?.(ids);
+      return true;
+    }
+    return false;
+  },[tab,activeModel]);
+
+  // 複製（Cmd+D）
+  const handleDuplicateItem=useCallback(()=>{
+    if(tab==='object'){
+      if(!objSelId)return false;
+      const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
+      if(!ent)return false;
+      const newId=uid();
+      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);const cloned=JSON.parse(JSON.stringify(ent));cloned.id=newId;cloned.name=uniqueName(ent.name,names);cloned.x=(ent.x||0)+20;cloned.y=(ent.y||0)+20;cloned.relations=cloned.relations.map(r=>({...r,id:uid()}));return{...m,objects:[...m.objects,cloned]};});
+      setObjSelId(newId);
+      showToast('Duplicated: '+ent.name);
+      return true;
+    }
+    if(tab==='pane'){
+      const{vwId}=mapSelRef.current;
+      if(!vwId)return false;
+      const vw=(activeModel.views||[]).find(s=>s.id===vwId);
+      if(!vw)return false;
+      const newId=uid();
+      effectiveSetModel(m=>({...m,views:[...m.views,{...JSON.parse(JSON.stringify(vw)),id:newId,x:(vw.x||0)+20,y:(vw.y||0)+20}]}));
+      showToast('Duplicated');
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      const newId=uid();
+      effectiveSetModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(sc)),id:newId,x:(sc.x||0)+20,y:(sc.y||0)+20}]}));
+      showToast('Duplicated: '+sc.name);
+      return true;
+    }
+    return false;
+  },[tab,objSelId,activeModel,effectiveSetModel]);
+
+  // 矢印キー移動
+  const handleMoveSelection=useCallback(({dx,dy})=>{
+    if(tab==='object'){
+      const multi=window.__edGetMultiSel?.();
+      if(multi&&multi.size>0){
+        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>multi.has(e.id)?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
+        return true;
+      }
+      if(objSelId){
+        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>e.id===objSelId?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
+        return true;
+      }
+      return false;
+    }
+    if(tab==='pane'){
+      const multi=window.__edGetMultiSel?.();
+      if(multi&&multi.size>0){
+        effectiveSetModel(m=>({...m,views:m.views.map(v=>multi.has(v.id)?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
+        return true;
+      }
+      const{vwId}=mapSelRef.current;
+      if(vwId){
+        effectiveSetModel(m=>({...m,views:m.views.map(v=>v.id===vwId?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
+        return true;
+      }
+      return false;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(scId){
+        effectiveSetModel(m=>({...m,screens:(m.screens||[]).map(s=>s.id===scId?{...s,x:(s.x||0)+dx,y:(s.y||0)+dy}:s)}));
+        return true;
+      }
+      return false;
+    }
+    return false;
+  },[tab,objSelId,effectiveSetModel]);
+
+  return{handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection};
+}
+
+/* ===== useGlobalKeys フック ===== */
+// グローバルwindow関数の登録・解除を管理
+function useGlobalKeys({handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection}){
+  useEffect(()=>{
+    window.__edUndo=handleUndo;window.__edRedo=handleRedo;
+    window.__edCopy=handleCopy;window.__edPaste=handlePaste;
+    window.__edCut=handleCut;window.__edDelete=handleDelete;
+    window.__edSelectAll=handleSelectAll;window.__edDuplicateItem=handleDuplicateItem;window.__edMoveSelection=handleMoveSelection;
+    return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=window.__edSelectAll=window.__edDuplicateItem=window.__edMoveSelection=null;};
+  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection]);
+}
+
 /* ===== 統合App ===== */
 const TABS=[{id:"object",label:"Object"},{id:"pane",label:"Pane"},{id:"screen",label:"Screen"}];
 
@@ -475,7 +687,6 @@ function App(){
   const tabViewState=useRef({object:{zoom:null,pan:null},pane:{zoom:null,pan:null},screen:{zoom:null,pan:null}});
   const[objSelId,setObjSelId]=useState(null);
   const[selRelId,setSelRelId]=useState(null);
-  const clipRef=useRef(null);
   // マップビューからの選択状態参照用
   const mapSelRef=useRef({vwId:null,navId:null});
   const setMapSelRef=(vwId,navId)=>{mapSelRef.current={vwId,navId};};
@@ -572,153 +783,7 @@ function App(){
     });
   },[setModelSilent]);
 
-  // コピー: objectタブではオブジェクト、viewタブではビューをコピー
-  const handleCopy=useCallback(()=>{
-    if(tab==='object'){
-      if(!objSelId)return false;
-      const ent=histRef.current.stack[histRef.current.idx]?.objects?.find(e=>e.id===objSelId);
-      if(!ent)return false;
-      clipRef.current={type:'object',data:JSON.parse(JSON.stringify(ent))};
-      showToast('Copied: '+ent.name);
-      return true;
-    }
-    if(tab==='pane'){
-      const{vwId}=mapSelRef.current;
-      if(!vwId)return false;
-      const vw=model.views.find(s=>s.id===vwId);
-      if(!vw)return false;
-      clipRef.current={type:'view',data:JSON.parse(JSON.stringify(vw))};
-      showToast('Copied: '+viewLabel(vw,model.objects));
-      return true;
-    }
-    if(tab==='screen'){
-      const scId=scrSelRef.current;
-      if(!scId)return false;
-      const sc=(model.screens||[]).find(s=>s.id===scId);
-      if(!sc)return false;
-      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
-      showToast('Copied: '+sc.name);
-      return true;
-    }
-    return false;
-  },[tab,objSelId,model]);
-
-  // ペースト
-  const handlePaste=useCallback(()=>{
-    if(!clipRef.current)return false;
-    if(tab==='object'&&clipRef.current.type==='object'){
-      const src=clipRef.current.data;
-      const newId=uid();
-      setModel(m=>{const names=m.objects.map(e=>e.name);const newEnt={...JSON.parse(JSON.stringify(src)),id:newId,name:uniqueName(src.name,names),x:(src.x||80)+40,y:(src.y||80)+40,relations:src.relations.map(r=>({...r,id:uid()}))};return{...m,objects:[...m.objects,newEnt]};});
-      setObjSelId(newId);
-      showToast('Pasted: '+src.name);
-      return true;
-    }
-    if(tab==='pane'&&clipRef.current.type==='view'){
-      const src=clipRef.current.data;
-      const newId=uid();
-      setModel(m=>{const newVw={...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40,objectId:src.objectId||"",fields:[...(src.fields||[])],verbs:[...(src.verbs||[])]};delete newVw.objects;delete newVw.name;return{...m,views:[...m.views,newVw]};});
-      showToast('Pasted: '+src.name);
-      return true;
-    }
-    if(tab==='screen'&&clipRef.current.type==='screen'){
-      const src=clipRef.current.data;
-      const newId=uid();
-      setModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(src)),id:newId,x:(src.x||80)+40,y:(src.y||80)+40}]}));
-      showToast('Pasted: '+src.name);
-      return true;
-    }
-    return false;
-  },[tab,setModel]);
-
-  // カット
-  const handleCut=useCallback(()=>{
-    if(tab==='object'){
-      if(!objSelId)return false;
-      const ent=histRef.current.stack[histRef.current.idx]?.objects?.find(e=>e.id===objSelId);
-      if(!ent)return false;
-      clipRef.current={type:'object',data:JSON.parse(JSON.stringify(ent))};
-      setModel(m=>({...m,objects:m.objects.filter(e=>e.id!==objSelId)}));
-      setObjSelId(null);
-      showToast('Cut: '+ent.name);
-      return true;
-    }
-    if(tab==='pane'){
-      const{vwId}=mapSelRef.current;
-      if(!vwId)return false;
-      const vw=model.views.find(s=>s.id===vwId);
-      if(!vw)return false;
-      clipRef.current={type:'view',data:JSON.parse(JSON.stringify(vw))};
-      setModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
-      showToast('Cut: '+viewLabel(vw,model.objects));
-      return true;
-    }
-    if(tab==='screen'){
-      const scId=scrSelRef.current;
-      if(!scId)return false;
-      const sc=(model.screens||[]).find(s=>s.id===scId);
-      if(!sc)return false;
-      clipRef.current={type:'screen',data:JSON.parse(JSON.stringify(sc))};
-      setModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
-      showToast('Cut: '+sc.name);
-      return true;
-    }
-    return false;
-  },[tab,objSelId,model,setModel]);
-
-  // 削除: タブに応じてオブジェクト/リレーション/ビュー/トランジションを削除
-  const handleDelete=useCallback(()=>{
-    if(tab==='object'){
-      if(selRelId){
-        const owner=model.objects.find(e=>e.id===selRelId.entId);
-        const rel=owner&&owner.relations.find(r=>r.id===selRelId.relId);
-        if(!rel)return false;
-        setModel(m=>({...m,objects:m.objects.map(e=>e.id===selRelId.entId?{...e,relations:e.relations.filter(r=>r.id!==selRelId.relId)}:e)}));
-        setSelRelId(null);
-        showToast('Deleted relation');
-        return true;
-      }
-      if(!objSelId)return false;
-      const ent=model.objects.find(e=>e.id===objSelId);
-      if(!ent)return false;
-      setModel(m=>({...m,objects:m.objects.filter(e=>e.id!==objSelId)}));
-      setObjSelId(null);
-      showToast('Deleted: '+ent.name);
-      return true;
-    }
-    if(tab==='pane'){
-      const{vwId,navId}=mapSelRef.current;
-      if(navId){
-        const nav=model.paneGraph.find(n=>n.id===navId);
-        if(!nav)return false;
-        setModel(m=>({...m,paneGraph:m.paneGraph.filter(n=>n.id!==navId)}));
-        showToast('Deleted edge');
-        return true;
-      }
-      if(!vwId)return false;
-      const vw=model.views.find(s=>s.id===vwId);
-      if(!vw)return false;
-      setModel(m=>({...m,views:m.views.filter(s=>s.id!==vwId),paneGraph:m.paneGraph.filter(t=>t.from!==vwId&&t.to!==vwId),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>p!==vwId)}))}));
-      showToast('Deleted: '+viewLabel(vw,model.objects));
-      return true;
-    }
-    if(tab==='screen'){
-      const scId=scrSelRef.current;
-      if(!scId)return false;
-      const sc=(model.screens||[]).find(s=>s.id===scId);
-      if(!sc)return false;
-      setModel(m=>({...m,screens:m.screens.filter(s=>s.id!==scId)}));
-      showToast('Deleted: '+sc.name);
-      return true;
-    }
-    return false;
-  },[tab,objSelId,selRelId,model,setModel]);
-
   // Undo/Redoでバリアント自動切替（Splitモード時は閉じる）
-  // useHistoryがfull model（_variants含む）を復元するため、activeフラグも自動で戻る。
-  // Split中に異なるバリアントの操作が復元された場合はSplitを閉じる。
-  // stale closure回避: undoの返すvariantIdと、復元前のactiveを直接比較せず、
-  // splitMode中かつvariantIdが返された場合はsplitModeのleft/rightに含まれるかで判定。
   const handleUndo=useCallback(()=>{
     const targetVid=undo();
     if(targetVid && splitMode){
@@ -737,105 +802,11 @@ function App(){
     }
   },[redo,splitMode]);
 
-  // 全選択
-  const handleSelectAll=useCallback(()=>{
-    if(tab==='object'){
-      const ids=new Set((activeModel.objects||[]).map(e=>e.id));
-      if(ids.size===0)return false;
-      setObjSelId(null);
-      window.__edSetMultiSel?.(ids);
-      return true;
-    }
-    if(tab==='pane'){
-      const ids=new Set((activeModel.views||[]).map(v=>v.id));
-      if(ids.size===0)return false;
-      window.__edSetMultiSel?.(ids);
-      return true;
-    }
-    return false;
-  },[tab,activeModel]);
+  // クリップボード操作フック
+  const{handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection}=useClipboard({tab,activeModel,effectiveSetModel,objSelId,setObjSelId,selRelId,setSelRelId,mapSelRef,scrSelRef});
 
-  // 複製（Cmd+D）
-  const handleDuplicateItem=useCallback(()=>{
-    if(tab==='object'){
-      if(!objSelId)return false;
-      const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
-      if(!ent)return false;
-      const newId=uid();
-      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);const cloned=JSON.parse(JSON.stringify(ent));cloned.id=newId;cloned.name=uniqueName(ent.name,names);cloned.x=(ent.x||0)+20;cloned.y=(ent.y||0)+20;cloned.relations=cloned.relations.map(r=>({...r,id:uid()}));return{...m,objects:[...m.objects,cloned]};});
-      setObjSelId(newId);
-      showToast('Duplicated: '+ent.name);
-      return true;
-    }
-    if(tab==='pane'){
-      const{vwId}=mapSelRef.current;
-      if(!vwId)return false;
-      const vw=(activeModel.views||[]).find(s=>s.id===vwId);
-      if(!vw)return false;
-      const newId=uid();
-      effectiveSetModel(m=>({...m,views:[...m.views,{...JSON.parse(JSON.stringify(vw)),id:newId,x:(vw.x||0)+20,y:(vw.y||0)+20}]}));
-      showToast('Duplicated');
-      return true;
-    }
-    if(tab==='screen'){
-      const scId=scrSelRef.current;
-      if(!scId)return false;
-      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
-      if(!sc)return false;
-      const newId=uid();
-      effectiveSetModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(sc)),id:newId,x:(sc.x||0)+20,y:(sc.y||0)+20}]}));
-      showToast('Duplicated: '+sc.name);
-      return true;
-    }
-    return false;
-  },[tab,objSelId,activeModel,effectiveSetModel]);
-
-  // 矢印キー移動
-  const handleMoveSelection=useCallback(({dx,dy})=>{
-    if(tab==='object'){
-      const multi=window.__edGetMultiSel?.();
-      if(multi&&multi.size>0){
-        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>multi.has(e.id)?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
-        return true;
-      }
-      if(objSelId){
-        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>e.id===objSelId?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
-        return true;
-      }
-      return false;
-    }
-    if(tab==='pane'){
-      const multi=window.__edGetMultiSel?.();
-      if(multi&&multi.size>0){
-        effectiveSetModel(m=>({...m,views:m.views.map(v=>multi.has(v.id)?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
-        return true;
-      }
-      const{vwId}=mapSelRef.current;
-      if(vwId){
-        effectiveSetModel(m=>({...m,views:m.views.map(v=>v.id===vwId?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
-        return true;
-      }
-      return false;
-    }
-    if(tab==='screen'){
-      const scId=scrSelRef.current;
-      if(scId){
-        effectiveSetModel(m=>({...m,screens:(m.screens||[]).map(s=>s.id===scId?{...s,x:(s.x||0)+dx,y:(s.y||0)+dy}:s)}));
-        return true;
-      }
-      return false;
-    }
-    return false;
-  },[tab,objSelId,effectiveSetModel]);
-
-  // グローバル関数登録
-  useEffect(()=>{
-    window.__edUndo=handleUndo;window.__edRedo=handleRedo;
-    window.__edCopy=handleCopy;window.__edPaste=handlePaste;
-    window.__edCut=handleCut;window.__edDelete=handleDelete;
-    window.__edSelectAll=handleSelectAll;window.__edDuplicateItem=handleDuplicateItem;window.__edMoveSelection=handleMoveSelection;
-    return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=window.__edSelectAll=window.__edDuplicateItem=window.__edMoveSelection=null;};
-  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection]);
+  // グローバル関数登録フック
+  useGlobalKeys({handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection});
 
   // データ変更検知
   useEffect(()=>{dataRef=model;if(dirtyRef.current){dirtyRef.current=false;markModified();}},[model]);
