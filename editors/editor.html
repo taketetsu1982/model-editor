@@ -92,7 +92,7 @@ const io=window.__editorIO.createFileIO({
   },
   onDisconnect(){passthrough={};},
   loadDataKey:'__edLoadData',
-  keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
+  keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete',selectAll:'__edSelectAll',duplicate:'__edDuplicateItem',moveSelection:'__edMoveSelection'},
   filePickerId:'pm-editor',
 });
 const{showToast,markModified}=io;
@@ -144,6 +144,11 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
   const[multiSel,setMultiSel]=useState(new Set());
   const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[])});
   const{svgRef,zoom,setZoom,pan,setPan,panning}=canvas;
+  useEffect(()=>{
+    window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};};
+    window.__edGetMultiSel=()=>multiSel;
+    return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
+  },[multiSel]);
   const dOff=useRef({x:0,y:0}),multiOffsets=useRef({});
   const ents=model.objects,selObj=ents.find(e=>e.id===selId);
   const selRelOwner=selRelId?ents.find(e=>e.id===selRelId.entId):null;
@@ -197,6 +202,11 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
   const selVw=selId?model.views.find(s=>s.id===selId):null;
   const canvas=useCanvas({items:model.views,itemW:SW,itemH:SH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[])});
   const{svgRef,zoom,setZoom,pan,setPan,panning}=canvas;
+  useEffect(()=>{
+    window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};setSelId(null);setSelNavId(null);setEditLabel(false);};
+    window.__edGetMultiSel=()=>multiSel;
+    return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
+  },[multiSel]);
   const dOff=useRef({x:0,y:0}),didDrag=useRef(false),multiOffsets=useRef({});
   const visVw=model.views;
   // ビューノードの検索（高さ計算: fields + verbs）
@@ -693,13 +703,104 @@ function App(){
     }
   },[redo,splitMode]);
 
+  // 全選択
+  const handleSelectAll=useCallback(()=>{
+    if(tab==='object'){
+      const ids=new Set((activeModel.objects||[]).map(e=>e.id));
+      if(ids.size===0)return;
+      setObjSelId(null);
+      window.__edSetMultiSel?.(ids);
+      return;
+    }
+    if(tab==='pane'){
+      const ids=new Set((activeModel.views||[]).map(v=>v.id));
+      if(ids.size===0)return;
+      window.__edSetMultiSel?.(ids);
+      return;
+    }
+  },[tab,activeModel]);
+
+  // 複製（Cmd+D）
+  const handleDuplicateItem=useCallback(()=>{
+    if(tab==='object'){
+      if(!objSelId)return false;
+      const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
+      if(!ent)return false;
+      const newId=uid();
+      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);return{...m,objects:[...m.objects,{...JSON.parse(JSON.stringify(ent)),id:newId,name:uniqueName(ent.name,names),x:(ent.x||0)+20,y:(ent.y||0)+20,relations:ent.relations.map(r=>({...r,id:uid()}))}]};});
+      setObjSelId(newId);
+      showToast('Duplicated: '+ent.name);
+      return true;
+    }
+    if(tab==='pane'){
+      const{vwId}=mapSelRef.current;
+      if(!vwId)return false;
+      const vw=(activeModel.views||[]).find(s=>s.id===vwId);
+      if(!vw)return false;
+      const newId=uid();
+      effectiveSetModel(m=>({...m,views:[...m.views,{...JSON.parse(JSON.stringify(vw)),id:newId,x:(vw.x||0)+20,y:(vw.y||0)+20}]}));
+      showToast('Duplicated');
+      return true;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(!scId)return false;
+      const sc=(activeModel.screens||[]).find(s=>s.id===scId);
+      if(!sc)return false;
+      const newId=uid();
+      effectiveSetModel(m=>({...m,screens:[...(m.screens||[]),{...JSON.parse(JSON.stringify(sc)),id:newId,x:(sc.x||0)+20,y:(sc.y||0)+20}]}));
+      showToast('Duplicated: '+sc.name);
+      return true;
+    }
+    return false;
+  },[tab,objSelId,activeModel,effectiveSetModel]);
+
+  // 矢印キー移動
+  const handleMoveSelection=useCallback(({dx,dy})=>{
+    if(tab==='object'){
+      const multi=window.__edGetMultiSel?.();
+      if(multi&&multi.size>0){
+        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>multi.has(e.id)?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
+        return true;
+      }
+      if(objSelId){
+        effectiveSetModel(m=>({...m,objects:m.objects.map(e=>e.id===objSelId?{...e,x:(e.x||0)+dx,y:(e.y||0)+dy}:e)}));
+        return true;
+      }
+      return false;
+    }
+    if(tab==='pane'){
+      const multi=window.__edGetMultiSel?.();
+      if(multi&&multi.size>0){
+        effectiveSetModel(m=>({...m,views:m.views.map(v=>multi.has(v.id)?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
+        return true;
+      }
+      const{vwId}=mapSelRef.current;
+      if(vwId){
+        effectiveSetModel(m=>({...m,views:m.views.map(v=>v.id===vwId?{...v,x:(v.x||0)+dx,y:(v.y||0)+dy}:v)}));
+        return true;
+      }
+      return false;
+    }
+    if(tab==='screen'){
+      const scId=scrSelRef.current;
+      if(scId){
+        effectiveSetModel(m=>({...m,screens:(m.screens||[]).map(s=>s.id===scId?{...s,x:(s.x||0)+dx,y:(s.y||0)+dy}:s)}));
+        return true;
+      }
+      return false;
+    }
+    return false;
+  },[tab,objSelId,effectiveSetModel]);
+
   // グローバル関数登録
   useEffect(()=>{
     window.__edUndo=handleUndo;window.__edRedo=handleRedo;
     window.__edCopy=handleCopy;window.__edPaste=handlePaste;
     window.__edCut=handleCut;window.__edDelete=handleDelete;
-    return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=null;};
-  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete]);
+    window.__edSelectAll=handleSelectAll;window.__edDuplicateItem=handleDuplicateItem;window.__edMoveSelection=handleMoveSelection;
+    return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=window.__edSelectAll=window.__edDuplicateItem=window.__edMoveSelection=null;};
+  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete,handleSelectAll,handleDuplicateItem,handleMoveSelection]);
 
   // データ変更検知
   useEffect(()=>{dataRef=model;if(dirtyRef.current){dirtyRef.current=false;markModified();}},[model]);
