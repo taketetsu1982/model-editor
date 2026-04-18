@@ -290,6 +290,129 @@
     };
   }
 
+  // ドラッグ・複数選択の共通フック
+  // config: { canvas, setModel, setModelSilent, itemsKey, enableMultiSel, onClearExtra }
+  function useDrag(config) {
+    var canvas = config.canvas, setModel = config.setModel, setModelSilent = config.setModelSilent;
+    var itemsKey = config.itemsKey, enableMultiSel = config.enableMultiSel !== false;
+    var onClearExtra = config.onClearExtra;
+
+    var dragState = useState(null), drag = dragState[0], setDrag = dragState[1];
+    var multiSelState = useState(new Set()), multiSel = multiSelState[0], setMultiSel = multiSelState[1];
+    var dOff = useRef({x:0, y:0});
+    var multiOffsets = useRef({});
+    var didDrag = useRef(false);
+    var multiSelRef = useRef(multiSel);
+    multiSelRef.current = multiSel;
+
+    // __edSetMultiSel / __edGetMultiSel 登録
+    useEffect(function() {
+      if (!enableMultiSel) return;
+      window.__edSetMultiSel = function(ids) {
+        setMultiSel(ids);
+        multiOffsets.current = {};
+        if (onClearExtra) onClearExtra();
+      };
+      window.__edGetMultiSel = function() { return multiSelRef.current; };
+      return function() { window.__edSetMultiSel = null; window.__edGetMultiSel = null; };
+    }, [enableMultiSel, onClearExtra]);
+
+    // ドラッグ開始（onBoxMD内から呼ぶ共通ロジック）
+    // e: mouseEvent, id: アイテムID, items: アイテム配列, selId: 現在の単一選択ID
+    // returns: void（内部でdrag/multiSel/dOffを更新）
+    var startDrag = useCallback(function(e, id, items, selId) {
+      var r = canvas.svgRef.current.getBoundingClientRect();
+      var mx = (e.clientX - r.left) / canvas.zoom + canvas.pan.x;
+      var my = (e.clientY - r.top) / canvas.zoom + canvas.pan.y;
+
+      if (enableMultiSel && e.shiftKey) {
+        window.getSelection && window.getSelection().removeAllRanges && window.getSelection().removeAllRanges();
+        var next = new Set(multiSel);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        if (selId && !next.has(selId)) next.add(selId);
+        setMultiSel(next);
+        var off = {};
+        next.forEach(function(nid) {
+          var en = items.find(function(e) { return e.id === nid; });
+          if (en) off[nid] = {x: mx - (en.x || 0), y: my - (en.y || 0)};
+        });
+        multiOffsets.current = off;
+        didDrag.current = false;
+        setDrag(id);
+        return {clearSel: true};
+      }
+
+      if (enableMultiSel && multiSel.size > 0 && multiSel.has(id)) {
+        var off2 = {};
+        multiSel.forEach(function(nid) {
+          var en = items.find(function(e) { return e.id === nid; });
+          if (en) off2[nid] = {x: mx - (en.x || 0), y: my - (en.y || 0)};
+        });
+        multiOffsets.current = off2;
+        didDrag.current = false;
+        setDrag(id);
+        return {};
+      }
+
+      setMultiSel(new Set());
+      multiOffsets.current = {};
+      var en = items.find(function(e) { return e.id === id; });
+      if (en) dOff.current = {x: mx - (en.x || 0), y: my - (en.y || 0)};
+      didDrag.current = false;
+      setDrag(id);
+      return {selectId: id};
+    }, [canvas, multiSel, enableMultiSel]);
+
+    // ドラッグ中の位置更新（onMM内から呼ぶ）
+    // returns: true if handled
+    var dragMove = useCallback(function(e) {
+      if (!drag) return false;
+      didDrag.current = true;
+      var r = canvas.svgRef.current.getBoundingClientRect();
+      var mx = (e.clientX - r.left) / canvas.zoom + canvas.pan.x;
+      var my = (e.clientY - r.top) / canvas.zoom + canvas.pan.y;
+
+      if (enableMultiSel && multiSel.size > 0) {
+        var off = multiOffsets.current;
+        setModelSilent(function(m) {
+          var updated = {};
+          updated[itemsKey] = (m[itemsKey] || []).map(function(item) {
+            return off[item.id] !== undefined
+              ? Object.assign({}, item, {x: mx - off[item.id].x, y: my - off[item.id].y})
+              : item;
+          });
+          return Object.assign({}, m, updated);
+        });
+      } else {
+        var d = dOff.current;
+        setModelSilent(function(m) {
+          var updated = {};
+          updated[itemsKey] = (m[itemsKey] || []).map(function(item) {
+            return item.id === drag
+              ? Object.assign({}, item, {x: mx - d.x, y: my - d.y})
+              : item;
+          });
+          return Object.assign({}, m, updated);
+        });
+      }
+      return true;
+    }, [drag, canvas, multiSel, enableMultiSel, setModelSilent, itemsKey]);
+
+    // ドラッグ完了（onUp内から呼ぶ）
+    var dragEnd = useCallback(function() {
+      if (drag && didDrag.current) setModel(function(m) { return m; });
+      setDrag(null);
+    }, [drag, setModel]);
+
+    return {
+      drag: drag, setDrag: setDrag,
+      multiSel: multiSel, setMultiSel: setMultiSel,
+      multiOffsets: multiOffsets, multiSelRef: multiSelRef,
+      dOff: dOff, didDrag: didDrag,
+      startDrag: startDrag, dragMove: dragMove, dragEnd: dragEnd
+    };
+  }
+
   // ズームボタン群コンポーネント
   function ZoomControls(props) {
     var svgRef = props.svgRef, zoom = props.zoom, setZoom = props.setZoom, pan = props.pan, setPan = props.setPan;
@@ -414,6 +537,7 @@
   exports.useInitialPan = useInitialPan;
   exports.useHistory = useHistory;
   exports.useCanvas = useCanvas;
+  exports.useDrag = useDrag;
   exports.ZoomControls = ZoomControls;
   exports.VariantBar = VariantBar;
 
