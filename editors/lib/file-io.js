@@ -228,6 +228,14 @@
         if (mod && e.key === 'v') { if (window[keys.paste]?.()) { e.preventDefault(); } }
         if (mod && e.key === 'x') { if (window[keys.cut]?.()) { e.preventDefault(); } }
         if (e.key === 'Delete' || e.key === 'Backspace') { if (window[keys.del]?.()) { e.preventDefault(); } }
+        if (mod && e.key === 'a') { e.preventDefault(); window[keys.selectAll]?.(); }
+        if (mod && e.key === 'd') { e.preventDefault(); window[keys.duplicate]?.(); }
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) >= 0) {
+          var step = e.shiftKey ? 10 : 1;
+          var dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+          var dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+          if (window[keys.moveSelection]?.({dx: dx, dy: dy})) { e.preventDefault(); }
+        }
       });
     }
 
