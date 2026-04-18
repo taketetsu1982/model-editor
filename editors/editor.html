@@ -485,6 +485,7 @@ function App(){
     if(!activeVariant)return;
     if(!window.confirm('「'+activeVariant.name+'」を採用し、他のバリアントを削除します。よろしいですか？'))return;
     setModel(m=>keepVariant(m,activeVariant.id));
+    setSplitMode(null);
     showToast('Kept: '+activeVariant.name);
   },[setModel,activeVariant]);
 
@@ -492,8 +493,9 @@ function App(){
     const v=variantList.find(v=>v.id===variantId);
     if(!window.confirm('「'+(v?.name||variantId)+'」を削除しますか？'))return;
     setModel(m=>deleteVariant(m,variantId));
+    if(splitMode&&(splitMode.left===variantId||splitMode.right===variantId))setSplitMode(null);
     showToast('Deleted variant');
-  },[setModel,variantList]);
+  },[setModel,variantList,splitMode]);
 
   const handleSwitchVariant=useCallback((variantId)=>{
     setModel(m=>switchVariant(m,variantId));
@@ -523,6 +525,39 @@ function App(){
       return updateVariantData(m,active.id,updated);
     });}
     :setModelSilent;
+
+  // Split View状態
+  const[splitMode,setSplitMode]=useState(null); // null | { left: variantId, right: variantId }
+  const[splitPicking,setSplitPicking]=useState(null); // null | { selected: [] }
+
+  // Split View用: バリアントIDからモデルデータを取得
+  const getVariantModel=useCallback((variantId)=>{
+    if(!isVariantMode(model))return model;
+    const v=model._variants.find(v=>v.id===variantId);
+    return v||activeModel;
+  },[model,activeModel]);
+
+  // Split View用: バリアントIDを指定してモデルを更新
+  const setVariantModel=useCallback((variantId)=>(updater)=>{
+    setModel(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    });
+  },[setModel]);
+
+  // Split View用: Silent版（ドラッグ操作時にhistoryエントリを作らない）
+  const setVariantModelSilent=useCallback((variantId)=>(updater)=>{
+    setModelSilent(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    });
+  },[setModelSilent]);
 
   // コピー: objectタブではオブジェクト、viewタブではビューをコピー
   const handleCopy=useCallback(()=>{
@@ -735,15 +770,56 @@ function App(){
         onDuplicate={handleDuplicate}
         onDelete={handleDeleteVariant}
         onRename={handleRenameVariant}
-        onSplit={()=>{}}
+        onSplit={()=>{
+          if(splitMode){setSplitMode(null);}
+          else if(variantList.length===2){setSplitMode({left:variantList[0].id,right:variantList[1].id});}
+          else{setSplitPicking({selected:[]});}
+        }}
         onKeep={handleKeep}
       />}
-      <div style={{flex:1,overflow:"hidden"}}>
-        {tab==="object"&&<ObjectView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
-
-        {tab==="pane"&&<MapView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
-        {tab==="screen"&&<ScreenView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setScrSelRef}/>}
+      <div style={{flex:1,overflow:"hidden",display:splitMode?"flex":"block"}}>
+        {splitMode?<>
+          {/* 左パネル */}
+          <div style={{flex:1,overflow:"hidden",borderRight:"2px solid "+M3.outlineVar,position:"relative"}}>
+            <div style={{position:"absolute",top:8,left:8,zIndex:10,display:"flex",alignItems:"center",gap:4,background:M3.primaryContainer,color:M3.onPrimaryContainer,padding:"2px 8px",borderRadius:M3.shapeSm,fontSize:11,fontWeight:500}}>
+              <select value={splitMode.left} onChange={e=>setSplitMode(s=>({...s,left:e.target.value}))} style={{border:"none",background:"transparent",color:"inherit",fontSize:11,fontWeight:500,fontFamily:"inherit",cursor:"pointer"}}>
+                {variantList.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            {tab==="object"&&<ObjectView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
+            {tab==="pane"&&<MapView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setScrSelRef}/>}
+          </div>
+          {/* 右パネル */}
+          <div style={{flex:1,overflow:"hidden",position:"relative"}}>
+            <div style={{position:"absolute",top:8,left:8,zIndex:10,display:"flex",alignItems:"center",gap:4,background:M3.surfaceCont,color:M3.onSurface,padding:"2px 8px",borderRadius:M3.shapeSm,fontSize:11,fontWeight:500}}>
+              <select value={splitMode.right} onChange={e=>setSplitMode(s=>({...s,right:e.target.value}))} style={{border:"none",background:"transparent",color:"inherit",fontSize:11,fontWeight:500,fontFamily:"inherit",cursor:"pointer"}}>
+                {variantList.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            {tab==="object"&&<ObjectView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
+            {tab==="pane"&&<MapView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setScrSelRef}/>}
+          </div>
+        </>:<>
+          {tab==="object"&&<ObjectView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
+          {tab==="pane"&&<MapView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
+          {tab==="screen"&&<ScreenView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setScrSelRef}/>}
+        </>}
       </div>
+      {splitPicking&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.3)"}} onClick={()=>setSplitPicking(null)}>
+        <div style={{background:"#fff",borderRadius:12,padding:24,minWidth:240,boxShadow:"var(--md-sys-elevation-3)"}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:14,fontWeight:500,marginBottom:16,color:M3.onSurface}}>比較する2つを選択</div>
+          {variantList.map(v=>{
+            const sel=(splitPicking.selected||[]).includes(v.id);
+            return<button key={v.id} onClick={()=>{
+              const next=sel?splitPicking.selected.filter(id=>id!==v.id):[...splitPicking.selected,v.id];
+              if(next.length===2){setSplitMode({left:next[0],right:next[1]});setSplitPicking(null);}
+              else setSplitPicking({selected:next});
+            }} style={{display:"block",width:"100%",padding:"8px 12px",marginBottom:4,border:sel?"2px solid #1A73E8":"1px solid "+M3.outlineVar,borderRadius:8,background:sel?"#E8F0FE":"transparent",cursor:"pointer",fontSize:13,fontFamily:"inherit",textAlign:"left",color:M3.onSurface}}>{v.name}</button>;
+          })}
+        </div>
+      </div>}
     </div>
   );
 }
