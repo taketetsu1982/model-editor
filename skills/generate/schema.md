@@ -19,8 +19,7 @@
 | views | ✅ | Pane定義の配列（type: "collection" / "single"） |
 | paneGraph | ✅ | Pane間の辺定義の配列（drilldown / embed） |
 | screens | ✅ | Screen定義の配列（デバイス別Pane構成） |
-
-> **`devices` について:** 旧スキーマではトップレベルに `"devices": ["mobile", "desktop"]` が存在したが、現在は省略可能。エディタが `["mobile", "desktop"]` をデフォルト値として補完する。generate時は出力しなくてよい。
+| devices | — | デバイス種別の文字列配列。省略時はエディタが `["mobile", "desktop"]` で補完する。generate時は出力不要 |
 
 ### バリアントモード（`_variants`）
 
@@ -191,4 +190,3 @@ Pane間の関係をグラフの辺として定義する。PaneがどうScreenに
 |--------|--------|------|
 | `relations[].type: "belongs-to"` | `"has-many"` | 旧リレーションタイプ |
 | `views[].objects` 配列 | `objectId` + `type` | 旧ビュースキーマ |
-| `devices` 未定義 | `["mobile", "desktop"]` | デフォルト値で補完 |
