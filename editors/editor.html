@@ -505,15 +505,15 @@ function App(){
     setModel(m=>renameVariant(m,variantId,newName));
   },[setModel]);
 
-  // バリアントモード時のsetModel: アクティブバリアントのデータだけ更新
+  // バリアントモード時のsetModel: アクティブバリアントのデータだけ更新（variantIdを履歴に記録）
   const setActiveModel=useCallback((updater)=>{
     setModel(m=>{
       if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
       const active=getActiveVariant(m);
       const updated=typeof updater==='function'?updater(active):updater;
       return updateVariantData(m,active.id,updated);
-    });
-  },[setModel]);
+    }, activeVariant?.id);
+  },[setModel,activeVariant]);
 
   const effectiveSetModel=isVariantMode(model)?setActiveModel:setModel;
 
@@ -537,7 +537,7 @@ function App(){
     return v||activeModel;
   },[model,activeModel]);
 
-  // Split View用: バリアントIDを指定してモデルを更新
+  // Split View用: バリアントIDを指定してモデルを更新（variantIdを履歴に記録）
   const setVariantModel=useCallback((variantId)=>(updater)=>{
     setModel(m=>{
       if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
@@ -545,7 +545,7 @@ function App(){
       if(!v)return m;
       const updated=typeof updater==='function'?updater(v):updater;
       return updateVariantData(m,variantId,updated);
-    });
+    }, variantId);
   },[setModel]);
 
   // Split View用: Silent版（ドラッグ操作時にhistoryエントリを作らない）
@@ -701,13 +701,34 @@ function App(){
     return false;
   },[tab,objSelId,selRelId,model,setModel]);
 
+  // Undo/Redoでバリアント自動切替（Splitモード時は閉じる）
+  const handleUndo=useCallback(()=>{
+    const targetVid=undo();
+    if(targetVid && isVariantMode(model)){
+      const current=getActiveVariant(model);
+      if(current && current.id!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[undo,model]);
+
+  const handleRedo=useCallback(()=>{
+    const targetVid=redo();
+    if(targetVid && isVariantMode(model)){
+      const current=getActiveVariant(model);
+      if(current && current.id!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[redo,model]);
+
   // グローバル関数登録
   useEffect(()=>{
-    window.__edUndo=undo;window.__edRedo=redo;
+    window.__edUndo=handleUndo;window.__edRedo=handleRedo;
     window.__edCopy=handleCopy;window.__edPaste=handlePaste;
     window.__edCut=handleCut;window.__edDelete=handleDelete;
     return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=null;};
-  },[undo,redo,handleCopy,handlePaste,handleCut,handleDelete]);
+  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete]);
 
   // データ変更検知
   useEffect(()=>{dataRef=model;if(dirtyRef.current){dirtyRef.current=false;markModified();}},[model]);

@@ -77,18 +77,19 @@
   }
 
   // 履歴管理フック
+  // 各履歴エントリは {data, variantId} 形式でバリアントIDを記録する
   function useHistory(initial, showToast) {
     var dataState = useState(initial), data = dataState[0], setDataRaw = dataState[1];
-    var histRef = useRef({stack:[initial], idx:0});
+    var histRef = useRef({stack:[{data: JSON.parse(JSON.stringify(initial)), variantId: null}], idx:0});
     var dirtyRef = useRef(false);
 
-    var setData = useCallback(function(updater) {
+    var setData = useCallback(function(updater, variantId) {
       dirtyRef.current = true;
       setDataRaw(function(prev) {
         var next = typeof updater === 'function' ? updater(prev) : updater;
         var hist = histRef.current;
         hist.stack = hist.stack.slice(0, hist.idx + 1);
-        hist.stack.push(JSON.parse(JSON.stringify(next)));
+        hist.stack.push({data: JSON.parse(JSON.stringify(next)), variantId: variantId || null});
         if (hist.stack.length > MAX_HISTORY) { hist.stack.shift(); } else { hist.idx++; }
         return next;
       });
@@ -100,25 +101,29 @@
 
     var undo = useCallback(function() {
       var hist = histRef.current;
-      if (hist.idx <= 0) return;
+      if (hist.idx <= 0) return null;
       hist.idx--;
+      var entry = hist.stack[hist.idx];
       dirtyRef.current = true;
-      setDataRaw(JSON.parse(JSON.stringify(hist.stack[hist.idx])));
+      setDataRaw(JSON.parse(JSON.stringify(entry.data)));
       showToast('Undo');
+      return entry.variantId;
     }, [showToast]);
 
     var redo = useCallback(function() {
       var hist = histRef.current;
-      if (hist.idx >= hist.stack.length - 1) return;
+      if (hist.idx >= hist.stack.length - 1) return null;
       hist.idx++;
+      var entry = hist.stack[hist.idx];
       dirtyRef.current = true;
-      setDataRaw(JSON.parse(JSON.stringify(hist.stack[hist.idx])));
+      setDataRaw(JSON.parse(JSON.stringify(entry.data)));
       showToast('Redo');
+      return entry.variantId;
     }, [showToast]);
 
     var reset = useCallback(function(newData) {
       setDataRaw(newData);
-      histRef.current = {stack:[JSON.parse(JSON.stringify(newData))], idx:0};
+      histRef.current = {stack:[{data: JSON.parse(JSON.stringify(newData)), variantId: null}], idx:0};
     }, []);
 
     return {data:data, setData:setData, setDataSilent:setDataSilent, undo:undo, redo:redo, reset:reset, histRef:histRef, dirtyRef:dirtyRef};
