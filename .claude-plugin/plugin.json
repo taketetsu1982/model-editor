@@ -1,7 +1,7 @@
 {
   "name": "model-editor",
   "description": "OOUIに基づくモデルエディタ。企画情報からオブジェクトとビューを1つのJSONに生成し、ブラウザ上で視覚的に編集できる。",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "author": {
     "name": "taketetsu1982"
   }
