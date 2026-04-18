@@ -87,7 +87,7 @@ io.setupKeyboard();
 
 <script type="text/babel">
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
-const{M3,Input,Sel,Btn,SLabel,useInitialPan,useHistory,useCanvas,ZoomControls,VariantBar}=window.__editorUI;
+const{M3,Input,Sel,Btn,SLabel,useInitialPan,useHistory,useCanvas,useDrag,ZoomControls,VariantBar}=window.__editorUI;
 const{OBJ_PALETTE,ZOOM_MIN,ZOOM_MAX,MAX_HISTORY,uid,uniqueName,edgePt,calcCenterPan,labelWidth,
   objPalette,objColor,objName,
   REL_TYPES,REL_TYPE_LABELS,EW,EH,SELF_REF_X,SELF_REF_Y,SELF_REF_CP,
@@ -105,36 +105,32 @@ const loadGenRef={current:0};
 
 /* ===== ObjectView ===== */
 function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSelRelId,savedViewState,onViewStateChange,onSplit}){
-  const[drag,setDrag]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[relDrag,setRelDrag]=useState(null);
-  const[multiSel,setMultiSel]=useState(new Set());
-  const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
+  const[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[relDrag,setRelDrag]=useState(null);
+  const dragHRef=useRef(null);
+  const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{const h=dragHRef.current;if(h){h.setMultiSel(new Set());h.multiOffsets.current={};}setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
   const hit=new Set();
   (model.objects||[]).forEach(e=>{
     if(rectsIntersect(e.x,e.y,EW,EH,rect.x,rect.y,rect.w,rect.h)) hit.add(e.id);
   });
   if(hit.size===0)return;
-  if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
-  else{setMultiSel(hit);}
-  setSelId(null);setSelRelId(null);multiOffsets.current={};
+  const h=dragHRef.current;if(!h)return;
+  if(shift){h.setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
+  else{h.setMultiSel(hit);}
+  setSelId(null);setSelRelId(null);h.multiOffsets.current={};
 },[model.objects])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;
-  const dOff=useRef({x:0,y:0}),multiOffsets=useRef({});
-  const multiSelRef=useRef(multiSel);
-  multiSelRef.current=multiSel;
-  useEffect(()=>{
-    window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};};
-    window.__edGetMultiSel=()=>multiSelRef.current;
-    return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
-  },[]);
+  const dragH=useDrag({canvas,setModel,setModelSilent,itemsKey:'objects',onClearExtra:useCallback(()=>{setSelId(null);setSelRelId(null);},[])});
+  dragHRef.current=dragH;
+  const{drag,multiSel,setMultiSel,multiOffsets,dOff}=dragH;
   const ents=model.objects,selObj=ents.find(e=>e.id===selId);
   const selRelOwner=selRelId?ents.find(e=>e.id===selRelId.entId):null;
   const selRel=selRelOwner?selRelOwner.relations.find(r=>r.id===selRelId.relId):null;
   useEffect(()=>{if(selRelId&&!selRel){setSelRelId(null);}},[selRelId,selRel]);
-  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();if(conn!==null){if(conn===""){setConn(id);const r2=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r2.left)/zoom+pan.x,my:(e.clientY-r2.top)/zoom+pan.y});return;}if(conn!==id){const nr={id:uid(),targetId:id,type:"has-many"};setModel(m=>({...m,objects:m.objects.map(en=>en.id===conn?{...en,relations:[...en.relations,nr]}:en)}));setConn(null);}setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;setSelRelId(null);if(e.shiftKey){window.getSelection()?.removeAllRanges();const next=new Set(multiSel);if(next.has(id))next.delete(id);else next.add(id);if(selId&&!next.has(selId))next.add(selId);setMultiSel(next);setSelId(null);const off={};next.forEach(nid=>{const en=ents.find(e=>e.id===nid);if(en)off[nid]={x:mx-en.x,y:my-en.y};});multiOffsets.current=off;setDrag(id);return;}if(multiSel.size>0&&multiSel.has(id)){const off={};multiSel.forEach(nid=>{const en=ents.find(e=>e.id===nid);if(en)off[nid]={x:mx-en.x,y:my-en.y};});multiOffsets.current=off;setDrag(id);return;}setMultiSel(new Set());multiOffsets.current={};setSelId(id);const en=ents.find(e=>e.id===id);dOff.current={x:mx-en.x,y:my-en.y};setDrag(id);};
+  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();if(conn!==null){if(conn===""){setConn(id);const r2=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r2.left)/zoom+pan.x,my:(e.clientY-r2.top)/zoom+pan.y});return;}if(conn!==id){const nr={id:uid(),targetId:id,type:"has-many"};setModel(m=>({...m,objects:m.objects.map(en=>en.id===conn?{...en,relations:[...en.relations,nr]}:en)}));setConn(null);}setConnDrag(null);return;}setSelRelId(null);const result=dragH.startDrag(e,id,ents,selId);if(result.clearSel)setSelId(null);if(result.selectId)setSelId(result.selectId);};
   const onRelClick=(e,entId,relId)=>{e.stopPropagation();if(conn!==null)return;setMultiSel(new Set());multiOffsets.current={};const isSel=selRelId&&selRelId.entId===entId&&selRelId.relId===relId;setSelRelId(isSel?null:{entId,relId});setSelId(null);};
   const onHandleMD=(e,entId,relId,end)=>{e.preventDefault();e.stopPropagation();const r=svgRef.current.getBoundingClientRect();setRelDrag({entId,relId,end,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});setSelRelId(null);};
-  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(connDrag){if(conn===null){setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});return;}if(relDrag){const r=svgRef.current.getBoundingClientRect();setRelDrag(d=>({...d,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y}));return;}if(drag){const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;if(multiSel.size>0){const off=multiOffsets.current;setModelSilent(m=>({...m,objects:m.objects.map(en=>off[en.id]!==undefined?{...en,x:mx-off[en.id].x,y:my-off[en.id].y}:en)}));}else{setModelSilent(m=>({...m,objects:m.objects.map(en=>en.id===drag?{...en,x:mx-dOff.current.x,y:my-dOff.current.y}:en)}));}return;}canvas.onMouseMove(e);},[spaceHeld,connDrag,conn,relDrag,drag,canvas.onMouseMove,pan,zoom,setModelSilent,multiSel]);
-  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}if(connDrag){const hit=ents.find(en=>connDrag.mx>=en.x&&connDrag.mx<=en.x+EW&&connDrag.my>=en.y&&connDrag.my<=en.y+EH);if(hit&&conn&&hit.id!==conn){const nr={id:uid(),targetId:hit.id,type:"has-many"};setModel(m=>({...m,objects:m.objects.map(en=>en.id===conn?{...en,relations:[...en.relations,nr]}:en)}));setConn(null);}else if(!hit){setConn("");}setConnDrag(null);return;}if(relDrag){const hit=ents.find(en=>relDrag.mx>=en.x&&relDrag.mx<=en.x+EW&&relDrag.my>=en.y&&relDrag.my<=en.y+EH);if(hit){if(relDrag.end==="target"){updRelField(relDrag.entId,relDrag.relId,"targetId",hit.id);}else{const rel=ents.find(e=>e.id===relDrag.entId)?.relations.find(r=>r.id===relDrag.relId);if(rel&&hit.id!==relDrag.entId&&hit.id!==rel.targetId){setModel(m=>({...m,objects:m.objects.map(e=>{if(e.id===relDrag.entId)return{...e,relations:e.relations.filter(r=>r.id!==relDrag.relId)};if(e.id===hit.id)return{...e,relations:[...e.relations,{...rel,id:uid()}]};return e;})}));setSelRelId(null);}}}setRelDrag(null);return;}if(drag)setModel(m=>m);setDrag(null);canvas.onMouseUpOrLeave();};
+  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(connDrag){if(conn===null){setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});return;}if(relDrag){const r=svgRef.current.getBoundingClientRect();setRelDrag(d=>({...d,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y}));return;}if(dragH.dragMove(e))return;canvas.onMouseMove(e);},[spaceHeld,connDrag,conn,relDrag,dragH.dragMove,canvas.onMouseMove,pan,zoom]);
+  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}if(connDrag){const hit=ents.find(en=>connDrag.mx>=en.x&&connDrag.mx<=en.x+EW&&connDrag.my>=en.y&&connDrag.my<=en.y+EH);if(hit&&conn&&hit.id!==conn){const nr={id:uid(),targetId:hit.id,type:"has-many"};setModel(m=>({...m,objects:m.objects.map(en=>en.id===conn?{...en,relations:[...en.relations,nr]}:en)}));setConn(null);}else if(!hit){setConn("");}setConnDrag(null);return;}if(relDrag){const hit=ents.find(en=>relDrag.mx>=en.x&&relDrag.mx<=en.x+EW&&relDrag.my>=en.y&&relDrag.my<=en.y+EH);if(hit){if(relDrag.end==="target"){updRelField(relDrag.entId,relDrag.relId,"targetId",hit.id);}else{const rel=ents.find(e=>e.id===relDrag.entId)?.relations.find(r=>r.id===relDrag.relId);if(rel&&hit.id!==relDrag.entId&&hit.id!==rel.targetId){setModel(m=>({...m,objects:m.objects.map(e=>{if(e.id===relDrag.entId)return{...e,relations:e.relations.filter(r=>r.id!==relDrag.relId)};if(e.id===hit.id)return{...e,relations:[...e.relations,{...rel,id:uid()}]};return e;})}));setSelRelId(null);}}}setRelDrag(null);return;}dragH.dragEnd();canvas.onMouseUpOrLeave();};
   const upd=u=>setModel(m=>({...m,objects:m.objects.map(e=>e.id===u.id?u:e)}));
   const updRelField=(entId,relId,k,v)=>setModel(m=>({...m,objects:m.objects.map(e=>e.id===entId?{...e,relations:e.relations.map(r=>r.id===relId?{...r,[k]:v}:r)}:e)}));
   const addObj=()=>{const id=uid();setModel(m=>{const names=m.objects.map(e=>e.name);return{...m,objects:[...m.objects,{id,name:uniqueName("New Object",names),x:120/zoom+pan.x,y:120/zoom+pan.y,relations:[]}]};});setSelId(id);};
@@ -174,10 +170,10 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
 
 /* ===== MapView ===== */
 function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onViewStateChange,onSplit}){
-  const[selNavId,setSelNavId]=useState(null),[selId,setSelId]=useState(null),[drag,setDrag]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[navDrag,setNavDrag]=useState(null),[editLabel,setEditLabel]=useState(false);
-  const[multiSel,setMultiSel]=useState(new Set());
+  const[selNavId,setSelNavId]=useState(null),[selId,setSelId]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[navDrag,setNavDrag]=useState(null),[editLabel,setEditLabel]=useState(false);
   const selVw=selId?model.views.find(s=>s.id===selId):null;
-  const canvas=useCanvas({items:model.views,itemW:SW,itemH:SH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
+  const dragHRef=useRef(null);
+  const canvas=useCanvas({items:model.views,itemW:SW,itemH:SH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{const h=dragHRef.current;if(h){h.setMultiSel(new Set());h.multiOffsets.current={};}setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
   const hit=new Set();
   (model.views||[]).forEach(vw=>{
     const fields=(vw.fields||[]).length;const verbs=(vw.verbs||[]).length;
@@ -186,19 +182,15 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
     if(rectsIntersect(vw.x,vw.y,SW,ch,rect.x,rect.y,rect.w,rect.h)) hit.add(vw.id);
   });
   if(hit.size===0)return;
-  if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
-  else{setMultiSel(hit);}
-  setSelId(null);setSelNavId(null);setEditLabel(false);multiOffsets.current={};
+  const h=dragHRef.current;if(!h)return;
+  if(shift){h.setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
+  else{h.setMultiSel(hit);}
+  setSelId(null);setSelNavId(null);setEditLabel(false);h.multiOffsets.current={};
 },[model.views])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;
-  const dOff=useRef({x:0,y:0}),didDrag=useRef(false),multiOffsets=useRef({});
-  const multiSelRef=useRef(multiSel);
-  multiSelRef.current=multiSel;
-  useEffect(()=>{
-    window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};setSelId(null);setSelNavId(null);setEditLabel(false);};
-    window.__edGetMultiSel=()=>multiSelRef.current;
-    return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
-  },[]);
+  const dragH=useDrag({canvas,setModel,setModelSilent,itemsKey:'views',onClearExtra:useCallback(()=>{setSelId(null);setSelNavId(null);setEditLabel(false);},[])});
+  dragHRef.current=dragH;
+  const{drag,multiSel,setMultiSel,multiOffsets,dOff}=dragH;
   const visVw=model.views;
   // ビューノードの検索（高さ計算: fields + verbs）
   const findNode=id=>{const s=visVw.find(s=>s.id===id);if(!s)return null;const fields=(s.fields||[]).length;const verbs=(s.verbs||[]).length;const hasContent=fields>0||verbs>0;const h=SC_HEADER_H+(hasContent?8:40)+fields*SC_OBJ_ROW_H+(verbs>0?verbs*SC_OBJ_ROW_H+8:0)+8;return{...s,h};};
@@ -209,9 +201,9 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
   const addView=(type="collection")=>{const id=uid();setModel(m=>({...m,views:[...m.views,{id,type,objectId:m.objects[0]?.id||"",fields:[],verbs:[],x:120/zoom+pan.x,y:120/zoom+pan.y,prompt:""}]}));};
   const onHandleMD=(e,navId,end)=>{e.preventDefault();e.stopPropagation();const r=svgRef.current.getBoundingClientRect();setNavDrag({navId,end,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});setSelNavId(null);setEditLabel(false);};
   const connOn=conn!==null,connHasSrc=conn!==null&&conn!=="";
-  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();if(connOn){if(conn===""){setConn(id);const r2=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r2.left)/zoom+pan.x,my:(e.clientY-r2.top)/zoom+pan.y});return;}if(conn!==id){setModel(m=>({...m,paneGraph:[...m.paneGraph,{id:uid(),from:conn,to:id,type:"drilldown",param:""}]}));setConn(null);}setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;setSelNavId(null);setEditLabel(false);if(e.shiftKey){window.getSelection()?.removeAllRanges();const next=new Set(multiSel);if(next.has(id))next.delete(id);else next.add(id);if(selId&&!next.has(selId))next.add(selId);setMultiSel(next);setSelId(null);const off={};next.forEach(nid=>{const sc=visVw.find(s=>s.id===nid);if(sc)off[nid]={x:mx-sc.x,y:my-sc.y};});multiOffsets.current=off;didDrag.current=false;setDrag(id);return;}if(multiSel.size>0&&multiSel.has(id)){const off={};multiSel.forEach(nid=>{const sc=visVw.find(s=>s.id===nid);if(sc)off[nid]={x:mx-sc.x,y:my-sc.y};});multiOffsets.current=off;didDrag.current=false;setDrag(id);return;}setMultiSel(new Set());multiOffsets.current={};setSelId(id);const sc=visVw.find(s=>s.id===id);dOff.current={x:mx-sc.x,y:my-sc.y};didDrag.current=false;setDrag(id);};
-  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(connDrag){if(conn===null){setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});return;}if(navDrag){const r=svgRef.current.getBoundingClientRect();setNavDrag(d=>({...d,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y}));return;}if(drag){didDrag.current=true;const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;if(multiSel.size>0){const off=multiOffsets.current;setModelSilent(m=>({...m,views:m.views.map(s=>off[s.id]!==undefined?{...s,x:mx-off[s.id].x,y:my-off[s.id].y}:s)}));}else{setModelSilent(m=>({...m,views:m.views.map(s=>s.id===drag?{...s,x:mx-dOff.current.x,y:my-dOff.current.y}:s)}));}return;}canvas.onMouseMove(e);},[spaceHeld,connDrag,conn,navDrag,drag,canvas.onMouseMove,pan,zoom,setModelSilent,multiSel]);
-  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}if(connDrag){const hit=visVw.find(s=>{const n=findNode(s.id);return n&&connDrag.mx>=n.x&&connDrag.mx<=n.x+SW&&connDrag.my>=n.y&&connDrag.my<=n.y+n.h;});if(hit&&conn&&hit.id!==conn){setModel(m=>({...m,paneGraph:[...m.paneGraph,{id:uid(),from:conn,to:hit.id,type:"drilldown",param:""}]}));setConn(null);}else if(!hit){setConn("");}setConnDrag(null);return;}if(navDrag){const hit=visVw.find(s=>{const n=findNode(s.id);return n&&navDrag.mx>=n.x&&navDrag.mx<=n.x+SW&&navDrag.my>=n.y&&navDrag.my<=n.y+n.h;});if(hit){const nav=model.paneGraph.find(n=>n.id===navDrag.navId);if(nav){const field=navDrag.end==="from"?"from":"to";const other=field==="from"?"to":"from";if(hit.id!==nav[other]){setModel(m=>({...m,paneGraph:m.paneGraph.map(n=>n.id===navDrag.navId?{...n,[field]:hit.id}:n)}));}}}setNavDrag(null);return;}if(drag&&didDrag.current)setModel(m=>m);setDrag(null);canvas.onMouseUpOrLeave();};
+  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();if(connOn){if(conn===""){setConn(id);const r2=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r2.left)/zoom+pan.x,my:(e.clientY-r2.top)/zoom+pan.y});return;}if(conn!==id){setModel(m=>({...m,paneGraph:[...m.paneGraph,{id:uid(),from:conn,to:id,type:"drilldown",param:""}]}));setConn(null);}setConnDrag(null);return;}setSelNavId(null);setEditLabel(false);const result=dragH.startDrag(e,id,visVw,selId);if(result.clearSel)setSelId(null);if(result.selectId)setSelId(result.selectId);};
+  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(connDrag){if(conn===null){setConnDrag(null);return;}const r=svgRef.current.getBoundingClientRect();setConnDrag({mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y});return;}if(navDrag){const r=svgRef.current.getBoundingClientRect();setNavDrag(d=>({...d,mx:(e.clientX-r.left)/zoom+pan.x,my:(e.clientY-r.top)/zoom+pan.y}));return;}if(dragH.dragMove(e))return;canvas.onMouseMove(e);},[spaceHeld,connDrag,conn,navDrag,dragH.dragMove,canvas.onMouseMove,pan,zoom]);
+  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}if(connDrag){const hit=visVw.find(s=>{const n=findNode(s.id);return n&&connDrag.mx>=n.x&&connDrag.mx<=n.x+SW&&connDrag.my>=n.y&&connDrag.my<=n.y+n.h;});if(hit&&conn&&hit.id!==conn){setModel(m=>({...m,paneGraph:[...m.paneGraph,{id:uid(),from:conn,to:hit.id,type:"drilldown",param:""}]}));setConn(null);}else if(!hit){setConn("");}setConnDrag(null);return;}if(navDrag){const hit=visVw.find(s=>{const n=findNode(s.id);return n&&navDrag.mx>=n.x&&navDrag.mx<=n.x+SW&&navDrag.my>=n.y&&navDrag.my<=n.y+n.h;});if(hit){const nav=model.paneGraph.find(n=>n.id===navDrag.navId);if(nav){const field=navDrag.end==="from"?"from":"to";const other=field==="from"?"to":"from";if(hit.id!==nav[other]){setModel(m=>({...m,paneGraph:m.paneGraph.map(n=>n.id===navDrag.navId?{...n,[field]:hit.id}:n)}));}}}setNavDrag(null);return;}dragH.dragEnd();canvas.onMouseUpOrLeave();};
 
 
   useEffect(()=>{if(selNavId&&!model.paneGraph.find(n=>n.id===selNavId)){setSelNavId(null);setEditLabel(false);}},[model.paneGraph,selNavId]);
@@ -301,7 +293,6 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   const selId=selByDevice.current[deviceTab]||null;
   const setSelId=id=>{selByDevice.current={...selByDevice.current,[deviceTab]:id};forceUpdate(n=>n+1);};
   const[showDeviceEdit,setShowDeviceEdit]=useState(false);
-  const[drag,setDrag]=useState(null);
   const canvas=useCanvas({items:(model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),itemW:SCR_MIN_W,itemH:100,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setSelId(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
   const items2=(model.screens||[]).filter(s=>(s.device||(model.devices||["mobile"])[0])===deviceTab);
   for(var i=0;i<items2.length;i++){
@@ -310,7 +301,8 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   }
 },[model.screens,model.views,model.objects,deviceTab])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;
-  const dOff=useRef({x:0,y:0});
+  const dragH=useDrag({canvas,setModel,setModelSilent,itemsKey:'screens',enableMultiSel:false});
+  const{drag,dOff}=dragH;
   const selScreen=selId?(model.screens||[]).find(s=>s.id===selId):null;
 
   const addScreen=()=>{const id=uid();setModel(m=>({...m,screens:[...(m.screens||[]),{id,name:"New Screen",device:deviceTab,paneIds:[],x:120/zoom+pan.x,y:120/zoom+pan.y}]}));setSelId(id);};
@@ -328,9 +320,9 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   useEffect(()=>{onSelChange?.(selId);},[selId]);
 
   // キャンバス操作
-  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();setSelId(id);const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;const sc=(model.screens||[]).find(s=>s.id===id);if(sc){dOff.current={x:mx-(sc.x||0),y:my-(sc.y||0)};setDrag(id);}};
-  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(drag){const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;setModelSilent(m=>({...m,screens:m.screens.map(s=>s.id===drag?{...s,x:mx-dOff.current.x,y:my-dOff.current.y}:s)}));return;}canvas.onMouseMove(e);},[spaceHeld,drag,zoom,pan,setModelSilent,canvas.onMouseMove]);
-  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}if(drag)setModel(m=>m);setDrag(null);canvas.onMouseUpOrLeave();};
+  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();setSelId(id);dragH.startDrag(e,id,(model.screens||[]),null);};
+  const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(dragH.dragMove(e))return;canvas.onMouseMove(e);},[spaceHeld,dragH.dragMove,canvas.onMouseMove]);
+  const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}dragH.dragEnd();canvas.onMouseUpOrLeave();};
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
