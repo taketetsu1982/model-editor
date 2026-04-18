@@ -782,7 +782,7 @@ function App(){
           <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"0 16px",border:"none",background:"transparent",cursor:"pointer",color:isAct?"#1A73E8":"#9AA0A6",fontSize:14,fontWeight:500,lineHeight:"20px",letterSpacing:"0.1px",borderBottom:`3px solid ${isAct?"#1A73E8":"transparent"}`,borderTop:"3px solid transparent",fontFamily:"inherit",transition:"color .15s"}}>
             {t.label}{cnt>0&&<span style={{marginLeft:6,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,padding:"0 6px",borderRadius:"var(--md-sys-shape-full)",background:isAct?"#D3E3FD":"#E8EAED",color:isAct?"#041E49":"#5F6368",fontSize:11,fontWeight:600,lineHeight:1}}>{cnt}</span>}
           </button>);})}
-        {variantList.length===0&&<button onClick={handleDuplicate} style={{padding:"4px 12px",border:"1px solid "+M3.outlineVar,borderRadius:M3.shapeFull,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:M3.onSurfaceVar,fontFamily:"inherit",marginRight:8}}>+ Duplicate</button>}
+        {variantList.length===0&&<button onClick={handleDuplicate} style={{padding:"4px 12px",border:"1px solid "+M3.outlineVar,borderRadius:M3.shapeFull,background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:M3.onSurfaceVar,fontFamily:"inherit",marginRight:8,alignSelf:"center"}}>+ Duplicate</button>}
         <div ref={barRef} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,paddingRight:16,fontSize:14,fontFamily:"inherit"}}/>
       </div>
       {variantList.length>0&&<VariantBar
