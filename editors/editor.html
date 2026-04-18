@@ -41,25 +41,8 @@ let passthrough={};
 let dataRef=null;
 
 const DEFAULT_DEVICES=["mobile","desktop"];
-
-function migrateModelData(raw){
-  const objs=raw.objects||[];
-  let migrated=false;
-  objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
-  if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
-  let vwMigrated=false;
-  const vws=(raw.views||[]).map(v=>{
-    if(v.objects&&!v.objectId){
-      vwMigrated=true;
-      const first=v.objects[0];
-      const{objects:_,...rest2}=v;
-      return{...rest2,objectId:first?.objectId||"",type:first?.variant||v.type||"collection",fields:v.fields||[],verbs:v.verbs||[]};
-    }
-    return{...v,fields:v.fields||[],verbs:v.verbs||[]};
-  });
-  if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  return{objects:objs,views:vws,paneGraph:raw.paneGraph||[],screens:raw.screens||[],devices:raw.devices||DEFAULT_DEVICES};
-}
+const migrateModelData=window.__editorLib.migrateModelData;
+const rectsIntersect=window.__editorLib.rectsIntersect;
 
 function splitData(data){
   // バリアントモードの場合
@@ -70,7 +53,7 @@ function splitData(data){
     passthrough=rest;
     // 各バリアント内のデータにマイグレーションを適用
     const migrated=_variants.map(v=>{
-      const sub=migrateModelData(v);
+      const sub=migrateModelData(v,io.showToast);
       return{...v,...sub};
     });
     return{_variants:migrated};
@@ -78,7 +61,7 @@ function splitData(data){
   // 通常モード
   const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
   passthrough=rest;
-  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES});
+  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES},io.showToast);
 }
 
 const io=window.__editorIO.createFileIO({
@@ -127,7 +110,7 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
   const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
   const hit=new Set();
   (model.objects||[]).forEach(e=>{
-    if(e.x<rect.x+rect.w && e.x+EW>rect.x && e.y<rect.y+rect.h && e.y+EH>rect.y) hit.add(e.id);
+    if(rectsIntersect(e.x,e.y,EW,EH,rect.x,rect.y,rect.w,rect.h)) hit.add(e.id);
   });
   if(hit.size===0)return;
   if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
@@ -200,7 +183,7 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
     const fields=(vw.fields||[]).length;const verbs=(vw.verbs||[]).length;
     const hasContent=fields>0||verbs>0;
     const ch=36+(hasContent?8:40)+fields*22+(verbs>0?verbs*22+8:0)+8;
-    if(vw.x<rect.x+rect.w && vw.x+SW>rect.x && vw.y<rect.y+rect.h && vw.y+ch>rect.y) hit.add(vw.id);
+    if(rectsIntersect(vw.x,vw.y,SW,ch,rect.x,rect.y,rect.w,rect.h)) hit.add(vw.id);
   });
   if(hit.size===0)return;
   if(shift){setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
@@ -323,7 +306,7 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   const items2=(model.screens||[]).filter(s=>(s.device||(model.devices||["mobile"])[0])===deviceTab);
   for(var i=0;i<items2.length;i++){
     const sc=items2[i];const{w:cw,h:ch}=scrCardSize(sc,model.views,model.objects);
-    if((sc.x||0)<rect.x+rect.w && (sc.x||0)+cw>rect.x && (sc.y||0)<rect.y+rect.h && (sc.y||0)+ch>rect.y){setSelId(sc.id);return;}
+    if(rectsIntersect(sc.x||0,sc.y||0,cw,ch,rect.x,rect.y,rect.w,rect.h)){setSelId(sc.id);return;}
   }
 },[model.screens,model.views,model.objects,deviceTab])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;

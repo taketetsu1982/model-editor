@@ -13,6 +13,7 @@ const {
   VIEW_TYPES, TYPE_LABEL, viewLabel, EMPTY,
   DEVICE_ICONS, SCR_PAD, SCR_HEADER_H, SCR_PANE_H, SCR_PANE_GAP, SCR_PANE_PAD, SCR_MIN_W,
   scrCardSize,
+  migrateModelData, rectsIntersect,
 } = require('./shared.js');
 
 describe('uid', () => {
@@ -349,5 +350,112 @@ describe('scrCardSize', () => {
     const { h } = scrCardSize(sc, views, objects);
     // nonexistentはfilterで除外されるため、Pane1つ分
     expect(h).toBe(SCR_HEADER_H + SCR_PANE_H + SCR_PANE_PAD * 2);
+  });
+});
+
+describe('migrateModelData', () => {
+  it('空データではデフォルト構造を返す', () => {
+    const result = migrateModelData({});
+    expect(result).toEqual({
+      objects: [], views: [], paneGraph: [], screens: [],
+      devices: ['mobile', 'desktop'],
+    });
+  });
+
+  it('belongs-toをhas-manyに変換する', () => {
+    const raw = {
+      objects: [{ id: 'o1', name: 'Task', relations: [{ type: 'belongs-to', target: 'o2' }] }],
+      views: [],
+    };
+    const toasts = [];
+    const result = migrateModelData(raw, msg => toasts.push(msg));
+    expect(result.objects[0].relations[0].type).toBe('has-many');
+    // setTimeoutで通知されるため、即時にはtoastsは空
+  });
+
+  it('has-manyはそのまま維持される', () => {
+    const raw = {
+      objects: [{ id: 'o1', name: 'Task', relations: [{ type: 'has-many', target: 'o2' }] }],
+      views: [],
+    };
+    const result = migrateModelData(raw);
+    expect(result.objects[0].relations[0].type).toBe('has-many');
+  });
+
+  it('旧形式のviewをobjectId形式に変換する', () => {
+    const raw = {
+      objects: [],
+      views: [{ id: 'v1', type: 'collection', objects: [{ objectId: 'o1', variant: 'single' }] }],
+    };
+    const result = migrateModelData(raw);
+    expect(result.views[0].objectId).toBe('o1');
+    expect(result.views[0].type).toBe('single');
+    expect(result.views[0].objects).toBeUndefined();
+    expect(result.views[0].fields).toEqual([]);
+    expect(result.views[0].verbs).toEqual([]);
+  });
+
+  it('新形式のviewはそのまま維持しfields/verbsを補完する', () => {
+    const raw = {
+      objects: [],
+      views: [{ id: 'v1', objectId: 'o1', type: 'collection' }],
+    };
+    const result = migrateModelData(raw);
+    expect(result.views[0].objectId).toBe('o1');
+    expect(result.views[0].fields).toEqual([]);
+    expect(result.views[0].verbs).toEqual([]);
+  });
+
+  it('paneGraph/screens/devicesを引き継ぐ', () => {
+    const raw = {
+      objects: [], views: [],
+      paneGraph: [{ from: 'v1', to: 'v2' }],
+      screens: [{ id: 's1' }],
+      devices: ['tablet'],
+    };
+    const result = migrateModelData(raw);
+    expect(result.paneGraph).toEqual([{ from: 'v1', to: 'v2' }]);
+    expect(result.screens).toEqual([{ id: 's1' }]);
+    expect(result.devices).toEqual(['tablet']);
+  });
+
+  it('onToastがnullでもエラーにならない', () => {
+    const raw = {
+      objects: [{ id: 'o1', relations: [{ type: 'belongs-to', target: 'o2' }] }],
+      views: [{ id: 'v1', objects: [{ objectId: 'o1', variant: 'single' }] }],
+    };
+    expect(() => migrateModelData(raw, null)).not.toThrow();
+    expect(() => migrateModelData(raw)).not.toThrow();
+  });
+});
+
+describe('rectsIntersect', () => {
+  it('重なる矩形はtrueを返す', () => {
+    expect(rectsIntersect(0, 0, 100, 100, 50, 50, 100, 100)).toBe(true);
+  });
+
+  it('完全に含まれる矩形はtrueを返す', () => {
+    expect(rectsIntersect(0, 0, 200, 200, 50, 50, 50, 50)).toBe(true);
+  });
+
+  it('離れた矩形はfalseを返す', () => {
+    expect(rectsIntersect(0, 0, 50, 50, 100, 100, 50, 50)).toBe(false);
+  });
+
+  it('右に離れた矩形はfalseを返す', () => {
+    expect(rectsIntersect(0, 0, 50, 50, 60, 0, 50, 50)).toBe(false);
+  });
+
+  it('下に離れた矩形はfalseを返す', () => {
+    expect(rectsIntersect(0, 0, 50, 50, 0, 60, 50, 50)).toBe(false);
+  });
+
+  it('辺が接する場合はfalseを返す（開区間）', () => {
+    // ちょうど接する場合: ax+aw === bx なので ax+aw > bx は false
+    expect(rectsIntersect(0, 0, 50, 50, 50, 0, 50, 50)).toBe(false);
+  });
+
+  it('1ピクセル重なる場合はtrueを返す', () => {
+    expect(rectsIntersect(0, 0, 51, 51, 50, 50, 50, 50)).toBe(true);
   });
 });

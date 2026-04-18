@@ -173,4 +173,43 @@
     return { w: w, h: exports.SCR_HEADER_H + bodyH };
   };
 
+  // --- データマイグレーション ---
+  // モデルデータを最新スキーマに移行する純粋関数
+  // onToast: マイグレーション通知用コールバック（省略可）
+  exports.migrateModelData = function(raw, onToast) {
+    var objs = raw.objects || [];
+    var migrated = false;
+    objs.forEach(function(e) {
+      (e.relations || []).forEach(function(r) {
+        if (r.type === 'belongs-to') { r.type = 'has-many'; migrated = true; }
+      });
+    });
+    if (migrated && onToast) setTimeout(function() { onToast('belongs-toをhas-manyに自動変換しました'); }, 300);
+    var vwMigrated = false;
+    var vws = (raw.views || []).map(function(v) {
+      if (v.objects && !v.objectId) {
+        vwMigrated = true;
+        var first = v.objects[0];
+        var rest = {};
+        Object.keys(v).forEach(function(k) { if (k !== 'objects') rest[k] = v[k]; });
+        return Object.assign(rest, {
+          objectId: first && first.objectId ? first.objectId : "",
+          type: first && first.variant ? first.variant : v.type || "collection",
+          fields: v.fields || [],
+          verbs: v.verbs || []
+        });
+      }
+      return Object.assign({}, v, { fields: v.fields || [], verbs: v.verbs || [] });
+    });
+    if (vwMigrated && onToast) setTimeout(function() { onToast('ビュースキーマを新形式に自動変換しました'); }, 600);
+    var DEFAULT_DEVICES = ["mobile", "desktop"];
+    return { objects: objs, views: vws, paneGraph: raw.paneGraph || [], screens: raw.screens || [], devices: raw.devices || DEFAULT_DEVICES };
+  };
+
+  // --- 矩形交差判定（AABB） ---
+  // 2つの矩形が交差するか判定する
+  exports.rectsIntersect = function(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  };
+
 })(typeof module !== 'undefined' ? module.exports : (window.__editorLib = window.__editorLib || {}));
