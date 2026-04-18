@@ -169,6 +169,35 @@
       return function() { window.removeEventListener('keydown', handler); };
     }, [onEscape]);
 
+    // Space+ドラッグ（ハンドツール）
+    var spaceHeldState = useState(false), spaceHeld = spaceHeldState[0], setSpaceHeld = spaceHeldState[1];
+
+    useEffect(function() {
+      function onDown(e) {
+        if (e.key === ' ' && !e.target.closest('input,textarea,select,[contenteditable]')) {
+          e.preventDefault();
+          setSpaceHeld(true);
+        }
+      }
+      function onUp(e) {
+        if (e.key === ' ') {
+          setSpaceHeld(false);
+        }
+      }
+      function onBlur() { setSpaceHeld(false); }
+      function onVisChange() { if (document.hidden) setSpaceHeld(false); }
+      window.addEventListener('keydown', onDown);
+      window.addEventListener('keyup', onUp);
+      window.addEventListener('blur', onBlur);
+      document.addEventListener('visibilitychange', onVisChange);
+      return function() {
+        window.removeEventListener('keydown', onDown);
+        window.removeEventListener('keyup', onUp);
+        window.removeEventListener('blur', onBlur);
+        document.removeEventListener('visibilitychange', onVisChange);
+      };
+    }, []);
+
     var onWheel = useCallback(function(e) {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
@@ -207,7 +236,7 @@
 
     return {
       svgRef: svgRef, zoom: zoom, setZoom: setZoom, pan: pan, setPan: setPan,
-      panning: panning, onWheel: onWheel, onBgMouseDown: onBgMouseDown,
+      panning: panning, spaceHeld: spaceHeld, onWheel: onWheel, onBgMouseDown: onBgMouseDown,
       onMouseMove: onMouseMove, onMouseUpOrLeave: onMouseUpOrLeave
     };
   }
