@@ -215,74 +215,73 @@
   // --- Mermaid記法生成 ---
   var REL_MERMAID = { "has-many": "||--o{", "has-one": "||--||", "many-to-many": "}o--o{" };
 
+  // Object → erDiagram（リレーション図）
+  function generateObjectMermaid(model) {
+    var lines = ["erDiagram"];
+    (model.objects || []).forEach(function(obj) {
+      if (!obj.relations || obj.relations.length === 0) {
+        lines.push("    " + obj.id + " { }");
+        return;
+      }
+      obj.relations.forEach(function(r) {
+        var sym = REL_MERMAID[r.type] || "||--o{";
+        lines.push("    " + obj.id + " " + sym + " " + r.targetId + ' : "' + (r.type || "") + '"');
+      });
+    });
+    return lines.join("\n");
+  }
+
+  // Pane → classDiagram（fields=属性、verbs=操作）
+  function generatePaneMermaid(model) {
+    var lines = ["classDiagram"];
+    (model.views || []).forEach(function(vw) {
+      var on = exports.objName(model.objects || [], vw.objectId);
+      var tl = exports.TYPE_LABEL[vw.type] || vw.type;
+      var id = "`" + vw.id + "`";
+      lines.push("    class " + id + ' ["' + on + " " + tl + '"]');
+      (vw.fields || []).forEach(function(f) { lines.push("    " + id + " : " + f); });
+      (vw.verbs || []).forEach(function(v) { lines.push("    " + id + " : " + v + "()"); });
+    });
+    (model.paneGraph || []).forEach(function(e) {
+      var from = "`" + e.from + "`";
+      var to = "`" + e.to + "`";
+      if (e.type === "drilldown") {
+        lines.push("    " + from + " --> " + to + " : " + (e.param || "drilldown"));
+      } else {
+        lines.push("    " + from + " ..> " + to + " : embed");
+      }
+    });
+    return lines.join("\n");
+  }
+
+  // Screen → flowchart TD（デバイス別subgraph）
+  function generateScreenMermaid(model) {
+    var lines = ["flowchart TD"];
+    var devices = {};
+    (model.screens || []).forEach(function(sc) {
+      var d = sc.device || "unknown";
+      if (!devices[d]) devices[d] = [];
+      devices[d].push(sc);
+    });
+    Object.keys(devices).forEach(function(d) {
+      lines.push("    subgraph " + d);
+      devices[d].forEach(function(sc) {
+        var paneLabels = (sc.paneIds || []).map(function(pid) {
+          var vw = (model.views || []).find(function(v) { return v.id === pid; });
+          if (!vw) return pid;
+          return exports.objName(model.objects || [], vw.objectId) + " " + (exports.TYPE_LABEL[vw.type] || vw.type);
+        });
+        lines.push('        ' + sc.id + '["' + sc.name + '<br/>' + paneLabels.join(", ") + '"]');
+      });
+      lines.push("    end");
+    });
+    return lines.join("\n");
+  }
+
+  var MERMAID_GENERATORS = { object: generateObjectMermaid, pane: generatePaneMermaid, screen: generateScreenMermaid };
   exports.generateMermaid = function(tab, model) {
-    if (tab === "object") {
-      var lines = ["erDiagram"];
-      (model.objects || []).forEach(function(obj) {
-        // リレーションがないオブジェクトも表示する
-        if (!obj.relations || obj.relations.length === 0) {
-          lines.push("    " + obj.id + '["' + obj.name + '"]');
-          return;
-        }
-        obj.relations.forEach(function(r) {
-          var target = (model.objects || []).find(function(o) { return o.id === r.targetId; });
-          var sym = REL_MERMAID[r.type] || "||--o{";
-          lines.push("    " + obj.id + " " + sym + " " + r.targetId + ' : "' + (r.type || "") + '"');
-        });
-      });
-      return lines.join("\n");
-    }
-
-    if (tab === "pane") {
-      var lines = ["classDiagram"];
-      // クラス定義（fields=属性、verbs=操作）
-      (model.views || []).forEach(function(vw) {
-        var on = exports.objName(model.objects || [], vw.objectId);
-        var tl = exports.TYPE_LABEL[vw.type] || vw.type;
-        var id = "`" + vw.id + "`";
-        lines.push("    class " + id + ' ["' + on + " " + tl + '"]');
-        (vw.fields || []).forEach(function(f) { lines.push("    " + id + " : " + f); });
-        (vw.verbs || []).forEach(function(v) { lines.push("    " + id + " : " + v + "()"); });
-      });
-      // 辺
-      (model.paneGraph || []).forEach(function(e) {
-        var from = "`" + e.from + "`";
-        var to = "`" + e.to + "`";
-        if (e.type === "drilldown") {
-          lines.push("    " + from + " --> " + to + " : " + (e.param || "drilldown"));
-        } else {
-          lines.push("    " + from + " -- embed --> " + to);
-        }
-      });
-      return lines.join("\n");
-    }
-
-    if (tab === "screen") {
-      var lines = ["flowchart TD"];
-      var devices = {};
-      (model.screens || []).forEach(function(sc) {
-        var d = sc.device || "unknown";
-        if (!devices[d]) devices[d] = [];
-        devices[d].push(sc);
-      });
-      Object.keys(devices).forEach(function(d) {
-        lines.push("    subgraph " + d);
-        devices[d].forEach(function(sc) {
-          var paneLabels = (sc.paneIds || []).map(function(pid) {
-            var vw = (model.views || []).find(function(v) { return v.id === pid; });
-            if (!vw) return pid;
-            var on = exports.objName(model.objects || [], vw.objectId);
-            var tl = exports.TYPE_LABEL[vw.type] || vw.type;
-            return on + " " + tl;
-          });
-          lines.push('        ' + sc.id + '["' + sc.name + '<br/>' + paneLabels.join(", ") + '"]');
-        });
-        lines.push("    end");
-      });
-      return lines.join("\n");
-    }
-
-    return "";
+    var fn = MERMAID_GENERATORS[tab];
+    return fn ? fn(model) : "";
   };
 
 })(typeof module !== 'undefined' ? module.exports : (window.__editorLib = window.__editorLib || {}));
