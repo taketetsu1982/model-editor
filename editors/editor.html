@@ -33,23 +33,22 @@
 <script src="./lib/object-logic.js"></script>
 <script src="./lib/view-logic.js"></script>
 <script src="./lib/file-io.js"></script>
+<script src="./lib/variant-manager.js"></script>
 <script src="./lib/ui-components.js"></script>
 
 <script>
 let passthrough={};
 let dataRef=null;
 
-function splitData(data){
-  const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
-  passthrough=rest;
-  // objects マイグレーション: belongs-to → has-many
-  const objs=objects||[];
+const DEFAULT_DEVICES=["mobile","desktop"];
+
+function migrateModelData(raw){
+  const objs=raw.objects||[];
   let migrated=false;
   objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
   if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
-  // ビューマイグレーション: objects配列 → objectId + fields + verbs
   let vwMigrated=false;
-  const vws=(views||[]).map(v=>{
+  const vws=(raw.views||[]).map(v=>{
     if(v.objects&&!v.objectId){
       vwMigrated=true;
       const first=v.objects[0];
@@ -59,13 +58,38 @@ function splitData(data){
     return{...v,fields:v.fields||[],verbs:v.verbs||[]};
   });
   if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  const DEFAULT_DEVICES=["mobile","desktop"];
-  return{objects:objs,views:vws,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES};
+  return{objects:objs,views:vws,paneGraph:raw.paneGraph||[],screens:raw.screens||[],devices:raw.devices||DEFAULT_DEVICES};
+}
+
+function splitData(data){
+  // バリアントモードの場合
+  if(Array.isArray(data._variants)){
+    const err=window.__editorIO.validateVariants(data);
+    if(err){io.showToast('バリアントデータが不正です: '+err);return null;}
+    const{_variants,...rest}=data;
+    passthrough=rest;
+    // 各バリアント内のデータにマイグレーションを適用
+    const migrated=_variants.map(v=>{
+      const sub=migrateModelData(v);
+      return{...v,...sub};
+    });
+    return{_variants:migrated};
+  }
+  // 通常モード
+  const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
+  passthrough=rest;
+  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES});
 }
 
 const io=window.__editorIO.createFileIO({
   ids:{toast:'ed-toast',dot:'ed-dot',label:'ed-label',hint:'ed-hint',edited:'ed-edited',autoBtn:'ed-auto-btn',overlay:'ed-drop-overlay'},
-  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens,devices:dataRef.devices};},
+  getFullJson(){
+    if(!dataRef)return null;
+    if(dataRef._variants){
+      return{...passthrough,_variants:dataRef._variants};
+    }
+    return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens,devices:dataRef.devices};
+  },
   onDisconnect(){passthrough={};},
   loadDataKey:'__edLoadData',
   keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
@@ -79,9 +103,10 @@ io.setupKeyboard();
 </script>
 
 <script type="text/babel">
-const{useState,useRef,useCallback,useEffect}=React;
-const{M3,Input,Sel,Btn,SLabel,useInitialPan,useHistory}=window.__editorUI;
+const{useState,useRef,useCallback,useEffect,useMemo}=React;
+const{M3,Input,Sel,Btn,SLabel,useInitialPan,useHistory,VariantBar}=window.__editorUI;
 const{OBJ_PALETTE,ZOOM_MIN,ZOOM_MAX,MAX_HISTORY,uid,uniqueName,edgePt,calcCenterPan,labelWidth}=window.__editorLib;
+const{isVariantMode,toVariantMode,getActiveVariant,switchVariant,keepVariant,deleteVariant,renameVariant,getVariantList,updateVariantData}=window.__variantManager;
 const{ensurePositions:_ensurePositions,CIRCLED,circled}=window.__editorLib;
 const{ensureViewPositions:_ensureViewPositions}=window.__editorLib;
 const objPalette=(objs,id)=>window.__editorLib.objPalette(objs,id);
@@ -114,7 +139,7 @@ function ensureViewPositions(data){return _ensureViewPositions(data,{cols:VW_GRI
 const loadGenRef={current:0};
 
 /* ===== ObjectView ===== */
-function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSelRelId,savedViewState,onViewStateChange}){
+function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSelRelId,savedViewState,onViewStateChange,onSplit}){
   const[drag,setDrag]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[relDrag,setRelDrag]=useState(null);
   const[multiSel,setMultiSel]=useState(new Set());
   const{svgRef,pan,setPan}=useInitialPan(model.objects,EW,EH,loadGenRef);
@@ -168,7 +193,7 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
           {ents.flatMap(ent=>ent.relations.map((rel,ri)=>{const tgt=ents.find(e=>e.id===rel.targetId);if(!tgt)return null;const isRelSel=selRelId&&selRelId.entId===ent.id&&selRelId.relId===rel.id;const hi=isRelSel,col=hi?"#1A73E8":"#9AA0A6";const cLabel=REL_TYPE_LABELS[rel.type||"has-many"]||"1:n";if(tgt.id===ent.id){const lx=ent.x+EW-SELF_REF_X,ty=ent.y+SELF_REF_Y;return<text key={`lb-${ent.id}-${ri}`} x={lx+SELF_REF_CP+4} y={ty+6} fontSize={11} fontWeight={hi?600:400} fill={col} onClick={e=>onRelClick(e,ent.id,rel.id)} style={{cursor:"pointer"}}>{cLabel}</text>;}const fp=edgePt(ent.x,ent.y,EW,EH,tgt.x+EW/2,tgt.y+EH/2),tp=edgePt(tgt.x,tgt.y,EW,EH,ent.x+EW/2,ent.y+EH/2),mx=(fp.x+tp.x)/2,my=(fp.y+tp.y)/2;const lw=labelWidth(cLabel);return<g key={`lb-${ent.id}-${ri}`} onClick={e=>onRelClick(e,ent.id,rel.id)} style={{cursor:"pointer"}}><rect x={mx-lw/2} y={my-9} width={lw} height={17} rx={8} fill="white" stroke={col} strokeWidth="0.5" opacity="0.96"/><text x={mx} y={my+4} fontSize={11} fontWeight={hi?600:400} fill={col} textAnchor="middle">{cLabel}</text></g>;}))}
           </g>
         </svg>
-        <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addObj}>+ Object</Btn><Btn small ghost={!connOn} accent={connOn} onClick={()=>{if(!connOn){setSelId(null);setSelRelId(null);setMultiSel(new Set());multiOffsets.current={};}setConn(connOn?null:"");setConnDrag(null);}}>{connOn?(connHasSrc?"→ select target":"← select source"):<span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>link</span> Connect</span>}</Btn>{connOn&&<Btn small ghost onClick={()=>{setConn(null);setConnDrag(null);}}><span className="msi" style={{fontSize:16}}>close</span></Btn>}</div>
+        <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addObj}>+ Object</Btn><Btn small accent={connOn} onClick={()=>{if(!connOn){setSelId(null);setSelRelId(null);setMultiSel(new Set());multiOffsets.current={};}setConn(connOn?null:"");setConnDrag(null);}}>{connOn?(connHasSrc?"→ select target":"← select source"):<span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>link</span> Connect</span>}</Btn>{onSplit&&<Btn small onClick={onSplit}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>call_split</span> Split</span></Btn>}</div>
         <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
           <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.max(ZOOM_MIN,z*0.8);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>−</button>
           <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx,y:wy-cy});return 1;});}} style={{minWidth:48,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:"#5F6368",borderRadius:14,fontFamily:"inherit"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>{Math.round(zoom*100)}%</button>
@@ -181,7 +206,7 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
 }
 
 /* ===== MapView ===== */
-function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onViewStateChange}){
+function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onViewStateChange,onSplit}){
   const[selNavId,setSelNavId]=useState(null),[selId,setSelId]=useState(null),[drag,setDrag]=useState(null),[conn,setConn]=useState(null),[connDrag,setConnDrag]=useState(null),[navDrag,setNavDrag]=useState(null),[editLabel,setEditLabel]=useState(false);
   const[multiSel,setMultiSel]=useState(new Set());
   const selVw=selId?model.views.find(s=>s.id===selId):null;
@@ -234,8 +259,8 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
           </svg>
           <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}>
             <Btn small onClick={()=>addView("collection")}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> Pane</span></Btn>
-            <Btn small ghost={!connOn} accent={connOn} onClick={()=>{if(!connOn){setSelId(null);setSelNavId(null);setEditLabel(false);setMultiSel(new Set());multiOffsets.current={};}setConn(connOn?null:"");setConnDrag(null);}}>{connOn?(connHasSrc?"→ select target":"← select source"):<span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>link</span> Connect</span>}</Btn>
-            {connOn&&<Btn small ghost onClick={()=>{setConn(null);setConnDrag(null);}}><span className="msi" style={{fontSize:16}}>close</span></Btn>}
+            <Btn small accent={connOn} onClick={()=>{if(!connOn){setSelId(null);setSelNavId(null);setEditLabel(false);setMultiSel(new Set());multiOffsets.current={};}setConn(connOn?null:"");setConnDrag(null);}}>{connOn?(connHasSrc?"→ select target":"← select source"):<span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>link</span> Connect</span>}</Btn>
+            {onSplit&&<Btn small onClick={onSplit}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>call_split</span> Split</span></Btn>}
           </div>
           <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.max(ZOOM_MIN,z*0.8);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>−</button>
@@ -298,7 +323,7 @@ const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR
 // Screenカードの幅・高さ計算
 const scrCardSize=(sc,views,objects)=>{const panes=(sc.paneIds||[]).map(pid=>views.find(v=>v.id===pid)).filter(Boolean);const pw=panes.reduce((mx,vw)=>{const lbl=viewLabel(vw,objects);return Math.max(mx,labelWidth(lbl)+40);},0);const w=Math.max(SCR_MIN_W,pw+SCR_PANE_PAD*2+SCR_PAD*2);const bodyH=panes.length>0?(panes.length*SCR_PANE_H+(panes.length-1)*SCR_PANE_GAP+SCR_PANE_PAD*2):48;return{w,h:SCR_HEADER_H+bodyH};};
 
-function ScreenView({model,setModel,setModelSilent,onSelChange}){
+function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
   const devices=model.devices||["mobile","desktop"];
   const[deviceTab,setDeviceTab]=useState(()=>devices[0]||"mobile");
   const selByDevice=useRef({});
@@ -393,7 +418,7 @@ function ScreenView({model,setModel,setModelSilent,onSelChange}){
             })()}
             </g>
           </svg>
-          <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addScreen}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> Screen</span></Btn></div>
+          <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addScreen}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> Screen</span></Btn>{onSplit&&<Btn small onClick={onSplit}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>call_split</span> Split</span></Btn>}</div>
           <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.max(ZOOM_MIN,z*0.8);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>−</button>
             <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx,y:wy-cy});return 1;});}} style={{minWidth:48,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:"#5F6368",borderRadius:14,fontFamily:"inherit"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>{Math.round(zoom*100)}%</button>
@@ -445,6 +470,96 @@ function App(){
   const setMapSelRef=(vwId,navId)=>{mapSelRef.current={vwId,navId};};
   const scrSelRef=useRef(null);
   const setScrSelRef=id=>{scrSelRef.current=id;};
+
+  // --- バリアント管理 ---
+  const variantList=isVariantMode(model)?getVariantList(model):[];
+  const activeVariant=isVariantMode(model)?getActiveVariant(model):null;
+  const activeModel=activeVariant||model;
+
+  const handleDuplicate=useCallback(()=>{
+    setModel(m=>toVariantMode(m));
+    showToast('Duplicated');
+  },[setModel]);
+
+  const handleKeep=useCallback(()=>{
+    if(!activeVariant)return;
+    if(!window.confirm('「'+activeVariant.name+'」を採用し、他のバリアントを削除します。よろしいですか？'))return;
+    setModel(m=>keepVariant(m,activeVariant.id));
+    setSplitMode(null);
+    showToast('Kept: '+activeVariant.name);
+  },[setModel,activeVariant]);
+
+  const handleDeleteVariant=useCallback((variantId)=>{
+    const v=variantList.find(v=>v.id===variantId);
+    if(!window.confirm('「'+(v?.name||variantId)+'」を削除しますか？'))return;
+    setModel(m=>deleteVariant(m,variantId));
+    if(splitMode&&(splitMode.left===variantId||splitMode.right===variantId))setSplitMode(null);
+    showToast('Deleted variant');
+  },[setModel,variantList,splitMode]);
+
+  const handleSwitchVariant=useCallback((variantId)=>{
+    setModel(m=>switchVariant(m,variantId));
+  },[setModel]);
+
+  const handleRenameVariant=useCallback((variantId,newName)=>{
+    setModel(m=>renameVariant(m,variantId,newName));
+  },[setModel]);
+
+  // バリアントモード時のsetModel: アクティブバリアントのデータだけ更新（variantIdを履歴に記録）
+  const setActiveModel=useCallback((updater)=>{
+    setModel(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const active=getActiveVariant(m);
+      const updated=typeof updater==='function'?updater(active):updater;
+      return updateVariantData(m,active.id,updated);
+    }, activeVariant?.id);
+  },[setModel,activeVariant]);
+
+  const inVariantMode=isVariantMode(model);
+  const effectiveSetModel=useMemo(()=>inVariantMode?setActiveModel:setModel,[inVariantMode,setActiveModel,setModel]);
+
+  const setActiveModelSilent=useCallback((updater)=>{
+    setModelSilent(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const active=getActiveVariant(m);
+      const updated=typeof updater==='function'?updater(active):updater;
+      return updateVariantData(m,active.id,updated);
+    });
+  },[setModelSilent]);
+  const effectiveSetModelSilent=useMemo(()=>inVariantMode?setActiveModelSilent:setModelSilent,[inVariantMode,setActiveModelSilent,setModelSilent]);
+
+  // Split View状態
+  const[splitMode,setSplitMode]=useState(null); // null | { left: variantId, right: variantId }
+  const[splitPicking,setSplitPicking]=useState(null); // null | { selected: [] }
+
+  // Split View用: バリアントIDからモデルデータを取得
+  const getVariantModel=useCallback((variantId)=>{
+    if(!isVariantMode(model))return model;
+    const v=model._variants.find(v=>v.id===variantId);
+    return v||activeModel;
+  },[model,activeModel]);
+
+  // Split View用: バリアントIDを指定してモデルを更新（variantIdを履歴に記録）
+  const setVariantModel=useCallback((variantId)=>(updater)=>{
+    setModel(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    }, variantId);
+  },[setModel]);
+
+  // Split View用: Silent版（ドラッグ操作時にhistoryエントリを作らない）
+  const setVariantModelSilent=useCallback((variantId)=>(updater)=>{
+    setModelSilent(m=>{
+      if(!isVariantMode(m))return typeof updater==='function'?updater(m):updater;
+      const v=m._variants.find(v=>v.id===variantId);
+      if(!v)return m;
+      const updated=typeof updater==='function'?updater(v):updater;
+      return updateVariantData(m,variantId,updated);
+    });
+  },[setModelSilent]);
 
   // コピー: objectタブではオブジェクト、viewタブではビューをコピー
   const handleCopy=useCallback(()=>{
@@ -588,13 +703,36 @@ function App(){
     return false;
   },[tab,objSelId,selRelId,model,setModel]);
 
+  // Undo/Redoでバリアント自動切替（Splitモード時は閉じる）
+  // useHistoryがfull model（_variants含む）を復元するため、activeフラグも自動で戻る。
+  // Split中に異なるバリアントの操作が復元された場合はSplitを閉じる。
+  // stale closure回避: undoの返すvariantIdと、復元前のactiveを直接比較せず、
+  // splitMode中かつvariantIdが返された場合はsplitModeのleft/rightに含まれるかで判定。
+  const handleUndo=useCallback(()=>{
+    const targetVid=undo();
+    if(targetVid && splitMode){
+      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[undo,splitMode]);
+
+  const handleRedo=useCallback(()=>{
+    const targetVid=redo();
+    if(targetVid && splitMode){
+      if(splitMode.left!==targetVid && splitMode.right!==targetVid){
+        setSplitMode(null);
+      }
+    }
+  },[redo,splitMode]);
+
   // グローバル関数登録
   useEffect(()=>{
-    window.__edUndo=undo;window.__edRedo=redo;
+    window.__edUndo=handleUndo;window.__edRedo=handleRedo;
     window.__edCopy=handleCopy;window.__edPaste=handlePaste;
     window.__edCut=handleCut;window.__edDelete=handleDelete;
     return()=>{window.__edUndo=window.__edRedo=window.__edCopy=window.__edPaste=window.__edCut=window.__edDelete=null;};
-  },[undo,redo,handleCopy,handlePaste,handleCut,handleDelete]);
+  },[handleUndo,handleRedo,handleCopy,handlePaste,handleCut,handleDelete]);
 
   // データ変更検知
   useEffect(()=>{dataRef=model;if(dirtyRef.current){dirtyRef.current=false;markModified();}},[model]);
@@ -603,10 +741,21 @@ function App(){
   useEffect(()=>{
     window.__edLoadData=d=>{
       const loaded=splitData(d);
-      const positioned=ensurePositions(loaded);
-      const viewPositioned=ensureViewPositions(positioned);
-      loadGenRef.current++;
-      resetHistory(viewPositioned);
+      if(!loaded)return;
+      if(loaded._variants){
+        // バリアントモード: 各バリアントに個別に位置計算を適用
+        const processed={...loaded,_variants:loaded._variants.map(v=>{
+          const p=ensurePositions(v);
+          return ensureViewPositions(p);
+        })};
+        loadGenRef.current++;
+        resetHistory(processed);
+      } else {
+        const positioned=ensurePositions(loaded);
+        const viewPositioned=ensureViewPositions(positioned);
+        loadGenRef.current++;
+        resetHistory(viewPositioned);
+      }
       setTab("object");
       setObjSelId(null);
       setSelRelId(null);
@@ -624,7 +773,7 @@ function App(){
     });
   },[]);
 
-  const counts={object:model.objects.length,pane:model.views.length,screen:(model.screens||[]).length};
+  const counts={object:(activeModel.objects||[]).length,pane:(activeModel.views||[]).length,screen:(activeModel.screens||[]).length};
 
   return(
     <div style={{height:"100vh",display:"flex",flexDirection:"column",background:M3.surface,fontFamily:"'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif",fontSize:14}}>
@@ -639,12 +788,63 @@ function App(){
           </button>);})}
         <div ref={barRef} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,paddingRight:16,fontSize:14,fontFamily:"inherit"}}/>
       </div>
-      <div style={{flex:1,overflow:"hidden"}}>
-        {tab==="object"&&<ObjectView model={model} setModel={setModel} setModelSilent={setModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
-
-        {tab==="pane"&&<MapView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
-        {tab==="screen"&&<ScreenView model={model} setModel={setModel} setModelSilent={setModelSilent} onSelChange={setScrSelRef}/>}
+      {variantList.length>0&&<VariantBar
+        variants={variantList}
+        isSplit={!!splitMode}
+        onSwitch={handleSwitchVariant}
+        onDuplicate={handleDuplicate}
+        onDelete={handleDeleteVariant}
+        onRename={handleRenameVariant}
+        onSplit={()=>{
+          if(splitMode){setSplitMode(null);}
+          else if(variantList.length===2){setSplitMode({left:variantList[0].id,right:variantList[1].id});}
+          else{setSplitPicking({selected:[]});}
+        }}
+        onKeep={handleKeep}
+      />}
+      <div style={{flex:1,overflow:"hidden",display:splitMode?"flex":"block"}}>
+        {splitMode?<>
+          {/* 左パネル */}
+          <div style={{flex:1,overflow:"hidden",borderRight:"2px solid "+M3.outlineVar,position:"relative"}}>
+            <div style={{position:"absolute",top:8,right:8,zIndex:10,display:"flex",alignItems:"center",gap:4,background:M3.primaryContainer,color:M3.onPrimaryContainer,padding:"2px 8px",borderRadius:M3.shapeSm,fontSize:11,fontWeight:500}}>
+              <select value={splitMode.left} onChange={e=>setSplitMode(s=>({...s,left:e.target.value}))} style={{border:"none",background:"transparent",color:"inherit",fontSize:11,fontWeight:500,fontFamily:"inherit",cursor:"pointer"}}>
+                {variantList.filter(v=>v.id!==splitMode.right).map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            {tab==="object"&&<ObjectView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
+            {tab==="pane"&&<MapView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setScrSelRef}/>}
+          </div>
+          {/* 右パネル */}
+          <div style={{flex:1,overflow:"hidden",position:"relative"}}>
+            <div style={{position:"absolute",top:8,right:8,zIndex:10,display:"flex",alignItems:"center",gap:4,background:M3.surfaceCont,color:M3.onSurface,padding:"2px 8px",borderRadius:M3.shapeSm,fontSize:11,fontWeight:500}}>
+              <select value={splitMode.right} onChange={e=>setSplitMode(s=>({...s,right:e.target.value}))} style={{border:"none",background:"transparent",color:"inherit",fontSize:11,fontWeight:500,fontFamily:"inherit",cursor:"pointer"}}>
+                {variantList.filter(v=>v.id!==splitMode.left).map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+            {tab==="object"&&<ObjectView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
+            {tab==="pane"&&<MapView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setScrSelRef}/>}
+          </div>
+        </>:<>
+          {tab==="object"&&<ObjectView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}} onSplit={handleDuplicate}/>}
+          {tab==="pane"&&<MapView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}} onSplit={handleDuplicate}/>}
+          {tab==="screen"&&<ScreenView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setScrSelRef} onSplit={handleDuplicate}/>}
+        </>}
       </div>
+      {splitPicking&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.3)"}} onClick={()=>setSplitPicking(null)}>
+        <div style={{background:"#fff",borderRadius:12,padding:24,minWidth:240,boxShadow:"var(--md-sys-elevation-3)"}} onClick={e=>e.stopPropagation()}>
+          <div style={{fontSize:14,fontWeight:500,marginBottom:16,color:M3.onSurface}}>比較する2つを選択</div>
+          {variantList.map(v=>{
+            const sel=(splitPicking.selected||[]).includes(v.id);
+            return<button key={v.id} onClick={()=>{
+              const next=sel?splitPicking.selected.filter(id=>id!==v.id):[...splitPicking.selected,v.id];
+              if(next.length===2){setSplitMode({left:next[0],right:next[1]});setSplitPicking(null);}
+              else setSplitPicking({selected:next});
+            }} style={{display:"block",width:"100%",padding:"8px 12px",marginBottom:4,border:sel?"2px solid #1A73E8":"1px solid "+M3.outlineVar,borderRadius:8,background:sel?"#E8F0FE":"transparent",cursor:"pointer",fontSize:13,fontFamily:"inherit",textAlign:"left",color:M3.onSurface}}>{v.name}</button>;
+          })}
+        </div>
+      </div>}
     </div>
   );
 }

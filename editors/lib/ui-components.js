@@ -77,18 +77,19 @@
   }
 
   // 履歴管理フック
+  // 各履歴エントリは {data, variantId} 形式でバリアントIDを記録する
   function useHistory(initial, showToast) {
     var dataState = useState(initial), data = dataState[0], setDataRaw = dataState[1];
-    var histRef = useRef({stack:[initial], idx:0});
+    var histRef = useRef({stack:[{data: JSON.parse(JSON.stringify(initial)), variantId: null}], idx:0});
     var dirtyRef = useRef(false);
 
-    var setData = useCallback(function(updater) {
+    var setData = useCallback(function(updater, variantId) {
       dirtyRef.current = true;
       setDataRaw(function(prev) {
         var next = typeof updater === 'function' ? updater(prev) : updater;
         var hist = histRef.current;
         hist.stack = hist.stack.slice(0, hist.idx + 1);
-        hist.stack.push(JSON.parse(JSON.stringify(next)));
+        hist.stack.push({data: JSON.parse(JSON.stringify(next)), variantId: variantId || null});
         if (hist.stack.length > MAX_HISTORY) { hist.stack.shift(); } else { hist.idx++; }
         return next;
       });
@@ -100,28 +101,109 @@
 
     var undo = useCallback(function() {
       var hist = histRef.current;
-      if (hist.idx <= 0) return;
+      if (hist.idx <= 0) return null;
       hist.idx--;
+      var entry = hist.stack[hist.idx];
       dirtyRef.current = true;
-      setDataRaw(JSON.parse(JSON.stringify(hist.stack[hist.idx])));
+      setDataRaw(JSON.parse(JSON.stringify(entry.data)));
       showToast('Undo');
+      return entry.variantId;
     }, [showToast]);
 
     var redo = useCallback(function() {
       var hist = histRef.current;
-      if (hist.idx >= hist.stack.length - 1) return;
+      if (hist.idx >= hist.stack.length - 1) return null;
       hist.idx++;
+      var entry = hist.stack[hist.idx];
       dirtyRef.current = true;
-      setDataRaw(JSON.parse(JSON.stringify(hist.stack[hist.idx])));
+      setDataRaw(JSON.parse(JSON.stringify(entry.data)));
       showToast('Redo');
+      return entry.variantId;
     }, [showToast]);
 
     var reset = useCallback(function(newData) {
       setDataRaw(newData);
-      histRef.current = {stack:[JSON.parse(JSON.stringify(newData))], idx:0};
+      histRef.current = {stack:[{data: JSON.parse(JSON.stringify(newData)), variantId: null}], idx:0};
     }, []);
 
     return {data:data, setData:setData, setDataSilent:setDataSilent, undo:undo, redo:redo, reset:reset, histRef:histRef, dirtyRef:dirtyRef};
+  }
+
+  // バリアント サブタブバー
+  // props: { variants, onSwitch, onDuplicate, onDelete, onRename, onSplit, onKeep, isSplit }
+  function VariantBar(props) {
+    var variants = props.variants, onSwitch = props.onSwitch, onDuplicate = props.onDuplicate;
+    var onDelete = props.onDelete, onRename = props.onRename, onSplit = props.onSplit, onKeep = props.onKeep;
+    var isSplit = props.isSplit;
+    var editingState = useState(null), editing = editingState[0], setEditing = editingState[1];
+    var editValueState = useState(''), editValue = editValueState[0], setEditValue = editValueState[1];
+    var menuState = useState(null), menuId = menuState[0], setMenuId = menuState[1];
+
+    // メニューが開いているときにドキュメント全体のクリックで閉じる
+    useEffect(function() {
+      if (!menuId) return;
+      function close() { setMenuId(null); }
+      document.addEventListener('click', close);
+      return function() { document.removeEventListener('click', close); };
+    }, [menuId]);
+
+    function startRename(v) { setEditing(v.id); setEditValue(v.name); setMenuId(null); }
+    function commitRename() {
+      if (editing && editValue.trim()) { onRename(editing, editValue.trim()); }
+      setEditing(null);
+    }
+
+    if (!variants || variants.length === 0) return null;
+
+    // Splitモード中: Split解除ボタンのみ
+    if (isSplit) {
+      return h("div", { className: "variant-bar" },
+        h("button", { className: "variant-action-btn", onClick: onSplit, style: { color: "var(--md-sys-color-primary)", borderColor: "var(--md-sys-color-primary)" } }, "Exit Compare")
+      );
+    }
+
+    var tabs = variants.map(function(v) {
+      var isActive = v.active;
+      if (editing === v.id) {
+        return h("div", { key: v.id, className: "variant-tab active" },
+          h("input", {
+            value: editValue, autoFocus: true,
+            onChange: function(e) { setEditValue(e.target.value); },
+            onBlur: commitRename,
+            onKeyDown: function(e) { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditing(null); },
+            style: { border: "none", background: "transparent", outline: "none", width: 80, fontSize: 13, fontWeight: 500, fontFamily: "inherit", color: "inherit" }
+          })
+        );
+      }
+      return h("div", {
+        key: v.id,
+        className: "variant-tab" + (isActive ? " active" : ""),
+        onClick: function() { onSwitch(v.id); setMenuId(null); },
+        onDoubleClick: function() { startRename(v); }
+      },
+        h("span", null, v.name),
+        isActive ? h("span", {
+          className: "variant-more-btn",
+          onClick: function(e) { e.stopPropagation(); setMenuId(menuId === v.id ? null : v.id); }
+        }, "\u22EF") : null,
+        menuId === v.id ? h("div", {
+          className: "variant-menu",
+          onClick: function(e) { e.stopPropagation(); }
+        },
+          h("div", { className: "variant-menu-item", onClick: function() { setMenuId(null); onDuplicate(); } }, "Duplicate"),
+          h("div", { className: "variant-menu-item", onClick: function() { startRename(v); } }, "Rename"),
+          h("div", { className: "variant-menu-divider" }),
+          h("div", { className: "variant-menu-item variant-menu-primary", onClick: function() { setMenuId(null); onKeep(); } }, "Keep"),
+          h("div", { className: "variant-menu-divider" }),
+          variants.length > 1 ? h("div", { className: "variant-menu-item variant-menu-danger", onClick: function() { setMenuId(null); onDelete(v.id); } }, "Delete") : null
+        ) : null
+      );
+    });
+
+    return h("div", { className: "variant-bar", onClick: function() { setMenuId(null); } },
+      variants.length >= 2 ? h("button", { className: "variant-action-btn", onClick: onSplit, style: { alignSelf: "center", marginRight: 4 } }, "Compare") : null,
+      tabs
+    );
   }
 
   exports.M3 = M3;
@@ -131,5 +213,6 @@
   exports.SLabel = SLabel;
   exports.useInitialPan = useInitialPan;
   exports.useHistory = useHistory;
+  exports.VariantBar = VariantBar;
 
 })(window.__editorUI = window.__editorUI || {});

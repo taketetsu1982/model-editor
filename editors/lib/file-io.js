@@ -2,6 +2,36 @@
 (function(exports) {
 
   /**
+   * validateVariants(data) — _variantsの構造を検証する
+   *
+   * 戻り値:
+   *   null                — 有効（エラーなし）
+   *   string              — エラーメッセージ
+   *
+   * 検証ルール:
+   *   - _variantsキーが存在しない → null（通常モードとして有効）
+   *   - _variantsが配列でない → エラー
+   *   - いずれかのvariantにidが存在しない → エラー
+   *   - いずれかのvariantにobjectsもviewsも存在しない → エラー
+   */
+  exports.validateVariants = function(data) {
+    if (!Object.prototype.hasOwnProperty.call(data, '_variants')) return null;
+    var variants = data._variants;
+    if (!Array.isArray(variants)) return '_variantsは配列である必要があります';
+    if (variants.length === 0) return '_variantsが空です';
+    for (var i = 0; i < variants.length; i++) {
+      var v = variants[i];
+      if (!Object.prototype.hasOwnProperty.call(v, 'id')) {
+        return 'variant[' + i + ']にidが存在しません';
+      }
+      if (!Object.prototype.hasOwnProperty.call(v, 'objects') && !Object.prototype.hasOwnProperty.call(v, 'views')) {
+        return 'variant[' + i + ']にobjectsもviewsも存在しません';
+      }
+    }
+    return null;
+  };
+
+  /**
    * createFileIO(config) — エディタ用ファイルI/Oインスタンスを生成
    *
    * config: {
