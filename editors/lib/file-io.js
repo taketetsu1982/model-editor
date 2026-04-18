@@ -228,8 +228,8 @@
         if (mod && e.key === 'v') { if (window[keys.paste]?.()) { e.preventDefault(); } }
         if (mod && e.key === 'x') { if (window[keys.cut]?.()) { e.preventDefault(); } }
         if (e.key === 'Delete' || e.key === 'Backspace') { if (window[keys.del]?.()) { e.preventDefault(); } }
-        if (mod && e.key === 'a') { e.preventDefault(); window[keys.selectAll]?.(); }
-        if (mod && e.key === 'd') { e.preventDefault(); window[keys.duplicate]?.(); }
+        if (mod && e.key === 'a') { if (window[keys.selectAll]?.()) { e.preventDefault(); } }
+        if (mod && e.key === 'd') { if (window[keys.duplicate]?.()) { e.preventDefault(); } }
         if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) >= 0) {
           var step = e.shiftKey ? 10 : 1;
           var dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;

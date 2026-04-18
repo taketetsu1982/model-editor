@@ -144,12 +144,14 @@ function ObjectView({model,setModel,setModelSilent,selId,setSelId,selRelId,setSe
   const[multiSel,setMultiSel]=useState(new Set());
   const canvas=useCanvas({items:model.objects,itemW:EW,itemH:EH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld}=canvas;
+  const dOff=useRef({x:0,y:0}),multiOffsets=useRef({});
+  const multiSelRef=useRef(multiSel);
+  multiSelRef.current=multiSel;
   useEffect(()=>{
     window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};};
-    window.__edGetMultiSel=()=>multiSel;
+    window.__edGetMultiSel=()=>multiSelRef.current;
     return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
-  },[multiSel]);
-  const dOff=useRef({x:0,y:0}),multiOffsets=useRef({});
+  },[]);
   const ents=model.objects,selObj=ents.find(e=>e.id===selId);
   const selRelOwner=selRelId?ents.find(e=>e.id===selRelId.entId):null;
   const selRel=selRelOwner?selRelOwner.relations.find(r=>r.id===selRelId.relId):null;
@@ -202,12 +204,14 @@ function MapView({model,setModel,setModelSilent,onSelChange,savedViewState,onVie
   const selVw=selId?model.views.find(s=>s.id===selId):null;
   const canvas=useCanvas({items:model.views,itemW:SW,itemH:SH,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setMultiSel(new Set());multiOffsets.current={};setConnDrag(null);},[])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld}=canvas;
+  const dOff=useRef({x:0,y:0}),didDrag=useRef(false),multiOffsets=useRef({});
+  const multiSelRef=useRef(multiSel);
+  multiSelRef.current=multiSel;
   useEffect(()=>{
     window.__edSetMultiSel=ids=>{setMultiSel(ids);multiOffsets.current={};setSelId(null);setSelNavId(null);setEditLabel(false);};
-    window.__edGetMultiSel=()=>multiSel;
+    window.__edGetMultiSel=()=>multiSelRef.current;
     return()=>{window.__edSetMultiSel=null;window.__edGetMultiSel=null;};
-  },[multiSel]);
-  const dOff=useRef({x:0,y:0}),didDrag=useRef(false),multiOffsets=useRef({});
+  },[]);
   const visVw=model.views;
   // ビューノードの検索（高さ計算: fields + verbs）
   const findNode=id=>{const s=visVw.find(s=>s.id===id);if(!s)return null;const fields=(s.fields||[]).length;const verbs=(s.verbs||[]).length;const hasContent=fields>0||verbs>0;const h=SC_HEADER_H+(hasContent?8:40)+fields*SC_OBJ_ROW_H+(verbs>0?verbs*SC_OBJ_ROW_H+8:0)+8;return{...s,h};};
@@ -707,17 +711,18 @@ function App(){
   const handleSelectAll=useCallback(()=>{
     if(tab==='object'){
       const ids=new Set((activeModel.objects||[]).map(e=>e.id));
-      if(ids.size===0)return;
+      if(ids.size===0)return false;
       setObjSelId(null);
       window.__edSetMultiSel?.(ids);
-      return;
+      return true;
     }
     if(tab==='pane'){
       const ids=new Set((activeModel.views||[]).map(v=>v.id));
-      if(ids.size===0)return;
+      if(ids.size===0)return false;
       window.__edSetMultiSel?.(ids);
-      return;
+      return true;
     }
+    return false;
   },[tab,activeModel]);
 
   // 複製（Cmd+D）
@@ -727,7 +732,7 @@ function App(){
       const ent=(activeModel.objects||[]).find(e=>e.id===objSelId);
       if(!ent)return false;
       const newId=uid();
-      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);return{...m,objects:[...m.objects,{...JSON.parse(JSON.stringify(ent)),id:newId,name:uniqueName(ent.name,names),x:(ent.x||0)+20,y:(ent.y||0)+20,relations:ent.relations.map(r=>({...r,id:uid()}))}]};});
+      effectiveSetModel(m=>{const names=m.objects.map(e=>e.name);const cloned=JSON.parse(JSON.stringify(ent));cloned.id=newId;cloned.name=uniqueName(ent.name,names);cloned.x=(ent.x||0)+20;cloned.y=(ent.y||0)+20;cloned.relations=cloned.relations.map(r=>({...r,id:uid()}));return{...m,objects:[...m.objects,cloned]};});
       setObjSelId(newId);
       showToast('Duplicated: '+ent.name);
       return true;
