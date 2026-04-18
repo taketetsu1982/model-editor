@@ -185,13 +185,16 @@
         }
       }
       function onBlur() { setSpaceHeld(false); }
+      function onVisChange() { if (document.hidden) setSpaceHeld(false); }
       window.addEventListener('keydown', onDown);
       window.addEventListener('keyup', onUp);
       window.addEventListener('blur', onBlur);
+      document.addEventListener('visibilitychange', onVisChange);
       return function() {
         window.removeEventListener('keydown', onDown);
         window.removeEventListener('keyup', onUp);
         window.removeEventListener('blur', onBlur);
+        document.removeEventListener('visibilitychange', onVisChange);
       };
     }, []);
 
