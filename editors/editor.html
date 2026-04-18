@@ -39,17 +39,15 @@
 let passthrough={};
 let dataRef=null;
 
-function splitData(data){
-  const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
-  passthrough=rest;
-  // objects マイグレーション: belongs-to → has-many
-  const objs=objects||[];
+const DEFAULT_DEVICES=["mobile","desktop"];
+
+function migrateModelData(raw){
+  const objs=raw.objects||[];
   let migrated=false;
   objs.forEach(e=>{(e.relations||[]).forEach(r=>{if(r.type==='belongs-to'){r.type='has-many';migrated=true;}});});
   if(migrated)setTimeout(()=>io.showToast('belongs-toをhas-manyに自動変換しました'),300);
-  // ビューマイグレーション: objects配列 → objectId + fields + verbs
   let vwMigrated=false;
-  const vws=(views||[]).map(v=>{
+  const vws=(raw.views||[]).map(v=>{
     if(v.objects&&!v.objectId){
       vwMigrated=true;
       const first=v.objects[0];
@@ -59,13 +57,38 @@ function splitData(data){
     return{...v,fields:v.fields||[],verbs:v.verbs||[]};
   });
   if(vwMigrated)setTimeout(()=>io.showToast('ビュースキーマを新形式に自動変換しました'),600);
-  const DEFAULT_DEVICES=["mobile","desktop"];
-  return{objects:objs,views:vws,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES};
+  return{objects:objs,views:vws,paneGraph:raw.paneGraph||[],screens:raw.screens||[],devices:raw.devices||DEFAULT_DEVICES};
+}
+
+function splitData(data){
+  // バリアントモードの場合
+  if(Array.isArray(data._variants)){
+    const err=window.__editorIO.validateVariants(data);
+    if(err){io.showToast('バリアントデータが不正です: '+err);return null;}
+    const{_variants,...rest}=data;
+    passthrough=rest;
+    // 各バリアント内のデータにマイグレーションを適用
+    const migrated=_variants.map(v=>{
+      const sub=migrateModelData(v);
+      return{...v,...sub};
+    });
+    return{_variants:migrated};
+  }
+  // 通常モード
+  const{objects,views,paneGraph,transitions:_tr,screens:_sc,actors:_a,...rest}=data;
+  passthrough=rest;
+  return migrateModelData({objects,views,paneGraph:paneGraph||data.transitions||[],screens:data.screens||[],devices:data.devices||DEFAULT_DEVICES});
 }
 
 const io=window.__editorIO.createFileIO({
   ids:{toast:'ed-toast',dot:'ed-dot',label:'ed-label',hint:'ed-hint',edited:'ed-edited',autoBtn:'ed-auto-btn',overlay:'ed-drop-overlay'},
-  getFullJson(){if(!dataRef)return null;return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens,devices:dataRef.devices};},
+  getFullJson(){
+    if(!dataRef)return null;
+    if(dataRef._variants){
+      return{...passthrough,_variants:dataRef._variants};
+    }
+    return{...passthrough,objects:dataRef.objects,views:dataRef.views,paneGraph:dataRef.paneGraph,screens:dataRef.screens,devices:dataRef.devices};
+  },
   onDisconnect(){passthrough={};},
   loadDataKey:'__edLoadData',
   keys:{undo:'__edUndo',redo:'__edRedo',copy:'__edCopy',paste:'__edPaste',cut:'__edCut',del:'__edDelete'},
