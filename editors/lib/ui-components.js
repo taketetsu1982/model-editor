@@ -321,6 +321,7 @@
     // e: mouseEvent, id: アイテムID, items: アイテム配列, selId: 現在の単一選択ID
     // returns: void（内部でdrag/multiSel/dOffを更新）
     var startDrag = useCallback(function(e, id, items, selId) {
+      if (!canvas.svgRef.current) return {};
       var r = canvas.svgRef.current.getBoundingClientRect();
       var mx = (e.clientX - r.left) / canvas.zoom + canvas.pan.x;
       var my = (e.clientY - r.top) / canvas.zoom + canvas.pan.y;
@@ -367,6 +368,7 @@
     // returns: true if handled
     var dragMove = useCallback(function(e) {
       if (!drag) return false;
+      if (!canvas.svgRef.current) return false;
       didDrag.current = true;
       var r = canvas.svgRef.current.getBoundingClientRect();
       var mx = (e.clientX - r.left) / canvas.zoom + canvas.pan.x;
