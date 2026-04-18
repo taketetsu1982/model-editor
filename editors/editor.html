@@ -297,7 +297,7 @@ const SCR_PAD=12,SCR_HEADER_H=40,SCR_PANE_H=36,SCR_PANE_GAP=4,SCR_PANE_PAD=8,SCR
 // Screenカードの幅・高さ計算
 const scrCardSize=(sc,views,objects)=>{const panes=(sc.paneIds||[]).map(pid=>views.find(v=>v.id===pid)).filter(Boolean);const pw=panes.reduce((mx,vw)=>{const lbl=viewLabel(vw,objects);return Math.max(mx,labelWidth(lbl)+40);},0);const w=Math.max(SCR_MIN_W,pw+SCR_PANE_PAD*2+SCR_PAD*2);const bodyH=panes.length>0?(panes.length*SCR_PANE_H+(panes.length-1)*SCR_PANE_GAP+SCR_PANE_PAD*2):48;return{w,h:SCR_HEADER_H+bodyH};};
 
-function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
+function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedViewState,onViewStateChange}){
   const devices=model.devices||["mobile","desktop"];
   const[deviceTab,setDeviceTab]=useState(()=>devices[0]||"mobile");
   const selByDevice=useRef({});
@@ -306,10 +306,9 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
   const setSelId=id=>{selByDevice.current={...selByDevice.current,[deviceTab]:id};forceUpdate(n=>n+1);};
   const[showDeviceEdit,setShowDeviceEdit]=useState(false);
   const[drag,setDrag]=useState(null);
-  const{svgRef,pan,setPan}=useInitialPan((model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),SCR_MIN_W,100,loadGenRef);
-  const[panning,setPanning]=useState(false);
-  const[zoom,setZoom]=useState(1);
-  const dOff=useRef({x:0,y:0}),panStart=useRef({x:0,y:0,px:0,py:0});
+  const canvas=useCanvas({items:(model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),itemW:SCR_MIN_W,itemH:100,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setSelId(null);},[])});
+  const{svgRef,zoom,setZoom,pan,setPan,panning}=canvas;
+  const dOff=useRef({x:0,y:0});
   const selScreen=selId?(model.screens||[]).find(s=>s.id===selId):null;
 
   const addScreen=()=>{const id=uid();setModel(m=>({...m,screens:[...(m.screens||[]),{id,name:"New Screen",device:deviceTab,paneIds:[],x:120/zoom+pan.x,y:120/zoom+pan.y}]}));setSelId(id);};
@@ -327,11 +326,9 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
   useEffect(()=>{onSelChange?.(selId);},[selId]);
 
   // キャンバス操作
-  const onBgMD=e=>{setPanning(true);panStart.current={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};};
   const onBoxMD=(e,id)=>{e.stopPropagation();setSelId(id);const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;const sc=(model.screens||[]).find(s=>s.id===id);if(sc){dOff.current={x:mx-(sc.x||0),y:my-(sc.y||0)};setDrag(id);}};
-  const onMM=useCallback(e=>{if(drag){const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;setModelSilent(m=>({...m,screens:m.screens.map(s=>s.id===drag?{...s,x:mx-dOff.current.x,y:my-dOff.current.y}:s)}));return;}if(panning){setPan({x:panStart.current.px-(e.clientX-panStart.current.x)/zoom,y:panStart.current.py-(e.clientY-panStart.current.y)/zoom});}},[drag,panning,pan,zoom,setModelSilent]);
-  const onUp=()=>{if(drag)setModel(m=>m);setDrag(null);setPanning(false);};
-  const onWheel=useCallback(e=>{e.preventDefault();if(e.ctrlKey||e.metaKey){const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left),my=(e.clientY-r.top);const d=e.deltaY>0?0.92:1.08;setZoom(z=>{const nz=Math.min(ZOOM_MAX,Math.max(ZOOM_MIN,z*d));const wx=mx/z+pan.x,wy=my/z+pan.y;setPan({x:wx-mx/nz,y:wy-my/nz});return nz;});}else{setPan(p=>({x:p.x+e.deltaX/zoom,y:p.y+e.deltaY/zoom}));}},[zoom,pan]);
+  const onMM=useCallback(e=>{if(drag){const r=svgRef.current.getBoundingClientRect();const mx=(e.clientX-r.left)/zoom+pan.x,my=(e.clientY-r.top)/zoom+pan.y;setModelSilent(m=>({...m,screens:m.screens.map(s=>s.id===drag?{...s,x:mx-dOff.current.x,y:my-dOff.current.y}:s)}));return;}canvas.onMouseMove(e);},[drag,zoom,pan,setModelSilent,canvas]);
+  const onUp=()=>{if(drag)setModel(m=>m);setDrag(null);canvas.onMouseUpOrLeave();};
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
@@ -341,9 +338,9 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-          <svg ref={svgRef} width="100%" height="100%" style={{cursor:drag?"grabbing":panning?"grabbing":"grab",display:"block",userSelect:drag||panning?"none":"auto"}} onMouseMove={onMM} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel} onClick={e=>{if(e.target===e.currentTarget||e.target.getAttribute('data-bg')){setSelId(null);}}}>
+          <svg ref={svgRef} width="100%" height="100%" style={{cursor:drag?"grabbing":panning?"grabbing":"grab",display:"block",userSelect:drag||panning?"none":"auto"}} onMouseMove={onMM} onMouseUp={onUp} onMouseLeave={onUp} onWheel={canvas.onWheel} onClick={e=>{if(e.target===e.currentTarget||e.target.getAttribute('data-bg')){setSelId(null);}}}>
             <defs><pattern id="scrdots" width={24/zoom} height={24/zoom} patternUnits="userSpaceOnUse" x={(-pan.x*zoom)%24} y={(-pan.y*zoom)%24}><circle cx={1/zoom} cy={1/zoom} r={1/zoom} fill="#E0E0E0"/></pattern><marker id="scrarr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9AA0A6"/></marker></defs>
-            <rect width="100%" height="100%" fill="url(#scrdots)" data-bg="1" onMouseDown={onBgMD}/>
+            <rect width="100%" height="100%" fill="url(#scrdots)" data-bg="1" onMouseDown={canvas.onBgMouseDown}/>
             <g transform={`scale(${zoom}) translate(${-pan.x},${-pan.y})`}>
             {items.map(sc=>{const isSel=selId===sc.id;const sx=sc.x||0,sy=sc.y||0;const panes=(sc.paneIds||[]).map(pid=>model.views.find(v=>v.id===pid)).filter(Boolean);const{w:cardW,h:cardH}=scrCardSize(sc,model.views,model.objects);return(
               <g key={sc.id} transform={`translate(${sx},${sy})`} onMouseDown={e=>onBoxMD(e,sc.id)} style={{cursor:drag?"grabbing":"grab"}}>
@@ -393,11 +390,7 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit}){
             </g>
           </svg>
           <div style={{position:"absolute",top:16,left:16,display:"flex",gap:8,alignItems:"center"}}><Btn small onClick={addScreen}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>add_box</span> Screen</span></Btn>{onSplit&&<Btn small onClick={onSplit}><span style={{display:"inline-flex",alignItems:"center",gap:4}}><span className="msi" style={{fontSize:16}}>call_split</span> Split</span></Btn>}</div>
-          <div style={{position:"absolute",bottom:16,right:16,display:"flex",alignItems:"center",gap:4,background:"white",borderRadius:"var(--md-sys-shape-full)",padding:"4px 8px",boxShadow:"var(--md-sys-elevation-1)"}}>
-            <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.max(ZOOM_MIN,z*0.8);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>−</button>
-            <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx,y:wy-cy});return 1;});}} style={{minWidth:48,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:12,fontWeight:500,color:"#5F6368",borderRadius:14,fontFamily:"inherit"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>{Math.round(zoom*100)}%</button>
-            <button onClick={()=>{const r=svgRef.current?.getBoundingClientRect();if(!r)return;const cx=r.width/2,cy=r.height/2;setZoom(z=>{const nz=Math.min(ZOOM_MAX,z*1.25);const wx=cx/z+pan.x,wy=cy/z+pan.y;setPan({x:wx-cx/nz,y:wy-cy/nz});return nz;});}} style={{width:28,height:28,border:"none",background:"transparent",cursor:"pointer",fontSize:16,color:"#5F6368",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={e=>{e.target.style.background="#F5F5F5";}} onMouseLeave={e=>{e.target.style.background="transparent";}}>+</button>
-          </div>
+          <ZoomControls svgRef={svgRef} zoom={zoom} setZoom={setZoom} pan={pan} setPan={setPan}/>
         </div>
       {selScreen&&(()=>{const sc=selScreen;return(
         <div style={{width:400,borderLeft:`1px solid ${M3.outlineVar}`,background:M3.surfaceContLow,display:"flex",flexDirection:"column",flexShrink:0}}>
@@ -435,7 +428,7 @@ function App(){
   const{data:model,setData:setModel,setDataSilent:setModelSilent,undo,redo,reset:resetHistory,histRef,dirtyRef}=useHistory(EMPTY,showToast);
   const[tab,setTab]=useState("object");
   // タブごとのzoom/pan状態を保持
-  const tabViewState=useRef({object:{zoom:null,pan:null},pane:{zoom:null,pan:null}});
+  const tabViewState=useRef({object:{zoom:null,pan:null},pane:{zoom:null,pan:null},screen:{zoom:null,pan:null}});
   const[objSelId,setObjSelId]=useState(null);
   const[selRelId,setSelRelId]=useState(null);
   const clipRef=useRef(null);
@@ -787,7 +780,7 @@ function App(){
             </div>
             {tab==="object"&&<ObjectView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
             {tab==="pane"&&<MapView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
-            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setScrSelRef}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.left)} setModel={setVariantModel(splitMode.left)} setModelSilent={setVariantModelSilent(splitMode.left)} onSelChange={setScrSelRef} savedViewState={tabViewState.current.screen} onViewStateChange={s=>{tabViewState.current.screen=s;}}/>}
           </div>
           {/* 右パネル */}
           <div style={{flex:1,overflow:"hidden",position:"relative"}}>
@@ -798,12 +791,12 @@ function App(){
             </div>
             {tab==="object"&&<ObjectView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}}/>}
             {tab==="pane"&&<MapView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}}/>}
-            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setScrSelRef}/>}
+            {tab==="screen"&&<ScreenView model={getVariantModel(splitMode.right)} setModel={setVariantModel(splitMode.right)} setModelSilent={setVariantModelSilent(splitMode.right)} onSelChange={setScrSelRef} savedViewState={tabViewState.current.screen} onViewStateChange={s=>{tabViewState.current.screen=s;}}/>}
           </div>
         </>:<>
           {tab==="object"&&<ObjectView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} selId={objSelId} setSelId={setObjSelId} selRelId={selRelId} setSelRelId={setSelRelId} savedViewState={tabViewState.current.object} onViewStateChange={s=>{tabViewState.current.object=s;}} onSplit={handleDuplicate}/>}
           {tab==="pane"&&<MapView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setMapSelRef} savedViewState={tabViewState.current.pane} onViewStateChange={s=>{tabViewState.current.pane=s;}} onSplit={handleDuplicate}/>}
-          {tab==="screen"&&<ScreenView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setScrSelRef} onSplit={handleDuplicate}/>}
+          {tab==="screen"&&<ScreenView model={activeModel} setModel={effectiveSetModel} setModelSilent={effectiveSetModelSilent} onSelChange={setScrSelRef} onSplit={handleDuplicate} savedViewState={tabViewState.current.screen} onViewStateChange={s=>{tabViewState.current.screen=s;}}/>}
         </>}
       </div>
       {splitPicking&&<div style={{position:"fixed",inset:0,zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.3)"}} onClick={()=>setSplitPicking(null)}>
