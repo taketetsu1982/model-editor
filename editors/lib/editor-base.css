@@ -59,5 +59,6 @@ body{font-family:'Google Sans','Roboto','Noto Sans JP',system-ui,sans-serif;colo
 .variant-menu{position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid var(--md-sys-color-outline-variant);border-radius:var(--md-sys-shape-sm);box-shadow:var(--md-sys-elevation-2);min-width:120px;z-index:20;padding:4px 0}
 .variant-menu-item{display:block;width:100%;padding:6px 16px;border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--md-sys-color-on-surface);font-family:inherit;text-align:left;transition:background .1s}
 .variant-menu-item:hover{background:var(--md-sys-color-surface-container)}
+.variant-menu-primary{color:var(--md-sys-color-primary)}
 .variant-menu-danger{color:var(--md-sys-color-error)}
 .variant-menu-divider{height:1px;background:var(--md-sys-color-outline-variant);margin:4px 0}

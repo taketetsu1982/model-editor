@@ -184,10 +184,11 @@
           onClick: function(e) { e.stopPropagation(); }
         },
           h("button", { className: "variant-menu-item", onClick: function() { setMenuId(null); onDuplicate(); } }, "Duplicate"),
-          h("button", { className: "variant-menu-item", onClick: function() { setMenuId(null); onKeep(); } }, "Keep"),
-          variants.length > 1 ? h("button", { className: "variant-menu-item variant-menu-danger", onClick: function() { setMenuId(null); onDelete(v.id); } }, "Delete") : null,
+          h("button", { className: "variant-menu-item", onClick: function() { startRename(v); } }, "Rename"),
           h("div", { className: "variant-menu-divider" }),
-          h("button", { className: "variant-menu-item", onClick: function() { startRename(v); } }, "Rename")
+          h("button", { className: "variant-menu-item variant-menu-primary", onClick: function() { setMenuId(null); onKeep(); } }, "Keep"),
+          h("div", { className: "variant-menu-divider" }),
+          variants.length > 1 ? h("button", { className: "variant-menu-item variant-menu-danger", onClick: function() { setMenuId(null); onDelete(v.id); } }, "Delete") : null
         ) : null
       );
     });
