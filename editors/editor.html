@@ -854,7 +854,7 @@ function App(){
           </button>);})}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,paddingRight:16,fontSize:14,fontFamily:"inherit"}}>
           <button onClick={()=>{const md="```mermaid\n"+generateMermaid(tab,activeModel)+"\n```\n";const blob=new Blob([md],{type:"text/markdown"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=tab+"-diagram.md";a.click();URL.revokeObjectURL(a.href);}} style={{border:"1px solid "+M3.outlineVar,background:"transparent",borderRadius:"var(--md-sys-shape-sm)",padding:"6px 12px",cursor:"pointer",fontSize:13,fontFamily:"inherit",color:M3.onSurface,display:"flex",alignItems:"center",gap:4}} title="Mermaid図をダウンロード">
-            <span className="material-symbols-outlined" style={{fontSize:16}}>schema</span>Mermaid
+            <span className="msi" style={{fontSize:16}}>schema</span>Mermaid
           </button>
           <div ref={barRef} style={{display:"flex",alignItems:"center",gap:12}}/>
         </div>
