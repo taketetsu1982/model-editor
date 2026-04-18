@@ -107,4 +107,122 @@
     return Object.assign({}, data, { _variants: newVariants });
   };
 
+  /**
+   * 指定したバリアントを採用して通常モードに戻す（イミュータブル）
+   * バリアントのモデルデータをトップレベルに昇格し、_variants を除去する
+   * @param {Object} data - バリアントモードのモデルデータ
+   * @param {string} variantId - 採用するバリアントのID
+   * @returns {Object} 通常モードの新しいモデルデータ
+   */
+  exports.keepVariant = function keepVariant(data, variantId) {
+    var target = data._variants.find(function(v) { return v.id === variantId; });
+    // 指定IDが見つからない場合はアクティブバリアントを使う
+    if (!target) {
+      target = exports.getActiveVariant(data);
+    }
+
+    // パススルーキー（モデルキー・_variants以外）を収集
+    var result = {};
+    Object.keys(data).forEach(function(key) {
+      if (MODEL_KEYS.indexOf(key) === -1 && key !== '_variants') {
+        result[key] = data[key];
+      }
+    });
+
+    // バリアントのモデルデータをディープコピーしてトップレベルに昇格
+    MODEL_KEYS.forEach(function(key) {
+      if (target[key] !== undefined) {
+        result[key] = JSON.parse(JSON.stringify(target[key]));
+      }
+    });
+
+    return result;
+  };
+
+  /**
+   * 指定したバリアントを削除する（イミュータブル）
+   * - 最後の1つを削除しようとした場合は変更なしで返す
+   * - 削除後に1つだけ残った場合は keepVariant を呼んで通常モードへ自動解決する
+   * - 削除したバリアントがアクティブだった場合は先頭を新たにアクティブにする
+   * @param {Object} data - バリアントモードのモデルデータ
+   * @param {string} variantId - 削除するバリアントのID
+   * @returns {Object} 新しいモデルデータ
+   */
+  exports.deleteVariant = function deleteVariant(data, variantId) {
+    // 最後の1つは削除できない
+    if (data._variants.length <= 1) {
+      return data;
+    }
+
+    var wasActive = data._variants.some(function(v) {
+      return v.id === variantId && v.active === true;
+    });
+
+    var remaining = data._variants.filter(function(v) { return v.id !== variantId; });
+
+    // 削除したバリアントがアクティブだった場合は先頭をアクティブにする
+    if (wasActive) {
+      remaining = remaining.map(function(v, i) {
+        return Object.assign({}, v, { active: i === 0 });
+      });
+    }
+
+    var newData = Object.assign({}, data, { _variants: remaining });
+
+    // 残りが1つになったら自動解決して通常モードへ
+    if (remaining.length === 1) {
+      return exports.keepVariant(newData, remaining[0].id);
+    }
+
+    return newData;
+  };
+
+  /**
+   * 指定したバリアントの名前を変更する（イミュータブル）
+   * @param {Object} data - バリアントモードのモデルデータ
+   * @param {string} variantId - 名前を変更するバリアントのID
+   * @param {string} newName - 新しい名前
+   * @returns {Object} 新しいモデルデータ
+   */
+  exports.renameVariant = function renameVariant(data, variantId, newName) {
+    var newVariants = data._variants.map(function(v) {
+      return v.id === variantId ? Object.assign({}, v, { name: newName }) : v;
+    });
+    return Object.assign({}, data, { _variants: newVariants });
+  };
+
+  /**
+   * UI描画用のバリアント一覧を返す
+   * @param {Object} data - モデルデータ
+   * @returns {Array<{id: string, name: string, active: boolean}>}
+   *   バリアントモードでなければ空配列を返す
+   */
+  exports.getVariantList = function getVariantList(data) {
+    if (!exports.isVariantMode(data)) {
+      return [];
+    }
+    return data._variants.map(function(v) {
+      return {
+        id: v.id,
+        name: v.name,
+        active: v.active === true,
+      };
+    });
+  };
+
+  /**
+   * 指定したバリアントのモデルデータを部分更新する（イミュータブル）
+   * updates のキーをバリアントにマージする（Object.assign スタイル）
+   * @param {Object} data - バリアントモードのモデルデータ
+   * @param {string} variantId - 更新するバリアントのID
+   * @param {Object} updates - マージするデータ
+   * @returns {Object} 新しいモデルデータ
+   */
+  exports.updateVariantData = function updateVariantData(data, variantId, updates) {
+    var newVariants = data._variants.map(function(v) {
+      return v.id === variantId ? Object.assign({}, v, updates) : v;
+    });
+    return Object.assign({}, data, { _variants: newVariants });
+  };
+
 })(typeof module !== 'undefined' ? module.exports : (window.__variantManager = window.__variantManager || {}));

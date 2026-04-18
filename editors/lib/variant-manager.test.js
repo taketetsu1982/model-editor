@@ -6,6 +6,11 @@ const {
   toVariantMode,
   getActiveVariant,
   switchVariant,
+  keepVariant,
+  deleteVariant,
+  renameVariant,
+  getVariantList,
+  updateVariantData,
 } = require('./variant-manager.js');
 
 // テスト用のサンプルモデルデータ
@@ -229,5 +234,252 @@ describe('switchVariant', () => {
     for (const v of result._variants) {
       expect(v.active).toBe(false);
     }
+  });
+});
+
+// ─── テスト用ヘルパー ───────────────────────────────────────────────────
+function makeVariantData() {
+  return {
+    devices: ['desktop', 'mobile'],
+    _variants: [
+      {
+        id: 'a', name: 'Option A', active: true,
+        objects: [{ id: 'obj1', name: 'A-Object' }],
+        views: [{ id: 'v1', name: 'A-View' }],
+        paneGraph: { nodes: ['n1'], edges: [] },
+        screens: [{ id: 's1', name: 'A-Screen' }],
+      },
+      {
+        id: 'b', name: 'Option B', active: false,
+        objects: [{ id: 'obj2', name: 'B-Object' }],
+        views: [{ id: 'v2', name: 'B-View' }],
+        paneGraph: { nodes: ['n2'], edges: [] },
+        screens: [{ id: 's2', name: 'B-Screen' }],
+      },
+      {
+        id: 'c', name: 'Option C', active: false,
+        objects: [{ id: 'obj3', name: 'C-Object' }],
+        views: [],
+        paneGraph: { nodes: [], edges: [] },
+        screens: [],
+      },
+    ],
+  };
+}
+
+describe('keepVariant', () => {
+  it('指定バリアントのモデルデータがトップレベルに昇格する', () => {
+    const data = makeVariantData();
+    const result = keepVariant(data, 'b');
+    expect(result.objects).toEqual([{ id: 'obj2', name: 'B-Object' }]);
+    expect(result.views).toEqual([{ id: 'v2', name: 'B-View' }]);
+    expect(result.screens).toEqual([{ id: 's2', name: 'B-Screen' }]);
+  });
+
+  it('_variants キーが除去される', () => {
+    const result = keepVariant(makeVariantData(), 'a');
+    expect(result).not.toHaveProperty('_variants');
+  });
+
+  it('パススルーキー（devices）が保持される', () => {
+    const result = keepVariant(makeVariantData(), 'a');
+    expect(result.devices).toEqual(['desktop', 'mobile']);
+  });
+
+  it('モデルデータはディープコピーされる（元データ参照なし）', () => {
+    const data = makeVariantData();
+    const result = keepVariant(data, 'a');
+    expect(result.objects).not.toBe(data._variants[0].objects);
+  });
+
+  it('元のデータは変更されない（イミュータブル）', () => {
+    const data = makeVariantData();
+    const original = JSON.parse(JSON.stringify(data));
+    keepVariant(data, 'a');
+    expect(data).toEqual(original);
+  });
+
+  it('存在しないIDを指定するとアクティブバリアントが採用される', () => {
+    const data = makeVariantData(); // 'a' がアクティブ
+    const result = keepVariant(data, 'z');
+    expect(result.objects).toEqual([{ id: 'obj1', name: 'A-Object' }]);
+  });
+});
+
+describe('deleteVariant', () => {
+  it('指定バリアントが削除される', () => {
+    const data = makeVariantData();
+    const result = deleteVariant(data, 'c');
+    expect(result._variants).toHaveLength(2);
+    expect(result._variants.find(v => v.id === 'c')).toBeUndefined();
+  });
+
+  it('削除後に2つ残る場合はバリアントモードのまま', () => {
+    const data = makeVariantData();
+    const result = deleteVariant(data, 'c');
+    expect(isVariantMode(result)).toBe(true);
+  });
+
+  it('削除したバリアントがアクティブでなければアクティブ状態は変わらない', () => {
+    const data = makeVariantData(); // 'a' がアクティブ
+    const result = deleteVariant(data, 'b');
+    expect(result._variants.find(v => v.id === 'a').active).toBe(true);
+  });
+
+  it('削除したバリアントがアクティブだった場合は先頭が新たにアクティブになる', () => {
+    const data = makeVariantData(); // 'a' がアクティブ
+    const result = deleteVariant(data, 'a');
+    // 'a' が削除されて 'b' が先頭になりアクティブになる
+    expect(result._variants[0].id).toBe('b');
+    expect(result._variants[0].active).toBe(true);
+  });
+
+  it('削除後に1つだけ残った場合は通常モードに自動解決する', () => {
+    // バリアントが2つのデータを作る
+    const data = {
+      devices: ['desktop'],
+      _variants: [
+        {
+          id: 'a', name: 'Option A', active: true,
+          objects: [{ id: 'obj1' }], views: [], paneGraph: {}, screens: [],
+        },
+        {
+          id: 'b', name: 'Option B', active: false,
+          objects: [{ id: 'obj2' }], views: [], paneGraph: {}, screens: [],
+        },
+      ],
+    };
+    const result = deleteVariant(data, 'b');
+    // 通常モードになる
+    expect(isVariantMode(result)).toBe(false);
+    expect(result).not.toHaveProperty('_variants');
+    // 残ったバリアント 'a' のデータが昇格する
+    expect(result.objects).toEqual([{ id: 'obj1' }]);
+    expect(result.devices).toEqual(['desktop']);
+  });
+
+  it('バリアントが1つしかない場合は削除できず元データを返す', () => {
+    const data = {
+      _variants: [
+        { id: 'a', name: 'Option A', active: true, objects: [], views: [], paneGraph: {}, screens: [] },
+      ],
+    };
+    const result = deleteVariant(data, 'a');
+    expect(result).toBe(data); // 同一参照
+  });
+
+  it('元のデータは変更されない（イミュータブル）', () => {
+    const data = makeVariantData();
+    const original = JSON.parse(JSON.stringify(data));
+    deleteVariant(data, 'c');
+    expect(data).toEqual(original);
+  });
+});
+
+describe('renameVariant', () => {
+  it('指定バリアントの名前が変更される', () => {
+    const data = makeVariantData();
+    const result = renameVariant(data, 'b', 'カスタムB');
+    expect(result._variants.find(v => v.id === 'b').name).toBe('カスタムB');
+  });
+
+  it('他のバリアントの名前は変わらない', () => {
+    const data = makeVariantData();
+    const result = renameVariant(data, 'b', 'カスタムB');
+    expect(result._variants.find(v => v.id === 'a').name).toBe('Option A');
+    expect(result._variants.find(v => v.id === 'c').name).toBe('Option C');
+  });
+
+  it('元のデータは変更されない（イミュータブル）', () => {
+    const data = makeVariantData();
+    renameVariant(data, 'b', 'カスタムB');
+    expect(data._variants.find(v => v.id === 'b').name).toBe('Option B');
+  });
+
+  it('存在しないIDを指定してもエラーにならずデータが返る', () => {
+    const data = makeVariantData();
+    const result = renameVariant(data, 'z', '新名前');
+    // 変更なし
+    expect(result._variants).toHaveLength(data._variants.length);
+  });
+});
+
+describe('getVariantList', () => {
+  it('バリアントモードのとき {id, name, active} の配列を返す', () => {
+    const data = makeVariantData();
+    const list = getVariantList(data);
+    expect(list).toHaveLength(3);
+    expect(list[0]).toEqual({ id: 'a', name: 'Option A', active: true });
+    expect(list[1]).toEqual({ id: 'b', name: 'Option B', active: false });
+    expect(list[2]).toEqual({ id: 'c', name: 'Option C', active: false });
+  });
+
+  it('active は常に boolean（undefined や null にならない）', () => {
+    const data = {
+      _variants: [
+        { id: 'a', name: 'Option A' }, // active プロパティなし
+        { id: 'b', name: 'Option B', active: false },
+      ],
+    };
+    const list = getVariantList(data);
+    expect(typeof list[0].active).toBe('boolean');
+    expect(list[0].active).toBe(false);
+  });
+
+  it('通常モードのときは空配列を返す', () => {
+    expect(getVariantList({ objects: [], views: [] })).toEqual([]);
+  });
+
+  it('_variants が空配列のときは空配列を返す', () => {
+    expect(getVariantList({ _variants: [] })).toEqual([]);
+  });
+
+  it('返り値はモデルデータのその他キーを含まない（id/name/activeのみ）', () => {
+    const data = makeVariantData();
+    const list = getVariantList(data);
+    for (const item of list) {
+      expect(Object.keys(item).sort()).toEqual(['active', 'id', 'name']);
+    }
+  });
+});
+
+describe('updateVariantData', () => {
+  it('指定バリアントのデータが更新される', () => {
+    const data = makeVariantData();
+    const newObjects = [{ id: 'obj99', name: '新Object' }];
+    const result = updateVariantData(data, 'a', { objects: newObjects });
+    expect(result._variants.find(v => v.id === 'a').objects).toEqual(newObjects);
+  });
+
+  it('他のバリアントは変更されない', () => {
+    const data = makeVariantData();
+    const result = updateVariantData(data, 'a', { objects: [] });
+    const varB = result._variants.find(v => v.id === 'b');
+    expect(varB.objects).toEqual([{ id: 'obj2', name: 'B-Object' }]);
+  });
+
+  it('既存キーを上書きできる', () => {
+    const data = makeVariantData();
+    const result = updateVariantData(data, 'b', { name: '上書きB' });
+    expect(result._variants.find(v => v.id === 'b').name).toBe('上書きB');
+  });
+
+  it('新しいキーを追加できる', () => {
+    const data = makeVariantData();
+    const result = updateVariantData(data, 'c', { customField: 'hello' });
+    expect(result._variants.find(v => v.id === 'c').customField).toBe('hello');
+  });
+
+  it('元のデータは変更されない（イミュータブル）', () => {
+    const data = makeVariantData();
+    const original = JSON.parse(JSON.stringify(data));
+    updateVariantData(data, 'a', { objects: [] });
+    expect(data).toEqual(original);
+  });
+
+  it('存在しないIDを指定してもエラーにならずデータが返る', () => {
+    const data = makeVariantData();
+    const result = updateVariantData(data, 'z', { objects: [] });
+    expect(result._variants).toHaveLength(data._variants.length);
   });
 });
