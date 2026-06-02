@@ -48,9 +48,14 @@
   exports.loadModelFromServer = async function(fetchImpl) {
     var res = await fetchImpl('/model');
     if (!res || !res.ok) throw new Error('model fetch failed: ' + (res && res.status));
+    // name はレスポンスヘッダ X-Model-Name、無ければ 'product-model.json'
     var name = (res.headers && res.headers.get && res.headers.get('X-Model-Name')) || 'product-model.json';
     var text = await res.text();
-    return { data: JSON.parse(text), name: name };
+    try {
+      return { data: JSON.parse(text), name: name };
+    } catch (pe) {
+      throw new Error('model JSON parse failed: ' + pe.message);
+    }
   };
 
   /**
@@ -76,6 +81,7 @@
    *   loadDataKey: string,             // window上のロードコールバック名
    *   keys: { undo, redo, copy, paste, cut, del },  // window上の関数名
    *   filePickerId: string,
+   *   fetchImpl: typeof fetch (省略時はwindow.fetch。テスト注入用),
    * }
    */
   exports.createFileIO = function(config) {
@@ -123,11 +129,12 @@
         try {
           var ok = await exports.saveModelToServer(full, fetchImpl);
           if (ok) { updateStatus('connected', serverModelName); el(ids.edited).style.display = 'none'; }
-          else updateStatus('error', 'Save failed');
+          else { updateStatus('error', 'Save failed'); showToast('自動保存に失敗しました'); }
           return ok;
         } catch (e) {
           console.error(e);
           updateStatus('error', 'Save failed');
+          showToast('自動保存に失敗しました');
           return false;
         } finally {
           isSaving = false;
@@ -182,18 +189,25 @@
       if (!fetchImpl) { updateStatus('error', 'fetch利用不可'); return; }
       try {
         var result = await exports.loadModelFromServer(fetchImpl);
+        var cb = window[config.loadDataKey];
+        if (!cb) {
+          // ロード先コールバックが未登録なら、空モデルの誤上書きを防ぐためサーバモードを開始しない
+          console.error('initServerMode: loadDataコールバック(' + config.loadDataKey + ')が未登録です');
+          updateStatus('error', '読込先が見つかりません');
+          return;
+        }
+        cb(result.data);
+        // データ受け渡し成功後にサーバモードと自動保存を有効化する
         serverMode = true;
         serverModelName = result.name;
         autoSaveEnabled = true;
         el(ids.autoBtn).style.display = 'flex';
         el(ids.autoBtn).classList.add('active');
         updateStatus('connected', serverModelName);
-        var cb = window[config.loadDataKey];
-        if (cb) cb(result.data);
       } catch (e) {
         console.error('server mode init failed:', e);
-        updateStatus('error', 'サーバ読込失敗');
-        // フォールバック: 従来のConnect UIのまま操作可能
+        // パースエラーとネットワーク/その他を区別して通知
+        updateStatus('error', /parse/i.test(e && e.message || '') ? 'モデルJSONが不正です' : 'サーバ読込失敗');
       }
     }
 

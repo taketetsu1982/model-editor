@@ -8,7 +8,9 @@ const core = require('./lib/server-core.js');
 
 const ROOT = __dirname; // editors/
 const modelPathArg = process.argv[2];
-const startPort = parseInt(process.argv[3], 10) || 8765;
+const DEFAULT_PORT = 8765;
+const MAX_PORT_ATTEMPTS = 20;
+const startPort = parseInt(process.argv[3], 10) || DEFAULT_PORT;
 
 if (!modelPathArg) {
   console.error('error: モデルJSONのパスを指定してください (node server.js <modelPath> [port])');
@@ -29,7 +31,7 @@ const server = http.createServer(function(req, res) {
   if (urlPath === '/model') {
     if (req.method === 'GET') {
       fs.readFile(modelPath, 'utf8', function(err, data) {
-        if (err) { res.writeHead(500); res.end('read error'); return; }
+        if (err) { console.error('read error:', err); res.writeHead(500); res.end('read error'); return; }
         res.writeHead(200, {
           'Content-Type': 'application/json; charset=utf-8',
           'X-Model-Name': path.basename(modelPath),
@@ -39,19 +41,22 @@ const server = http.createServer(function(req, res) {
       return;
     }
     if (req.method === 'PUT') {
+      let aborted = false;
       let body = '';
-      req.on('data', function(c) { body += c; });
       req.on('error', function(e) {
+        aborted = true;
         console.error('リクエスト読み取りエラー:', e.message);
         res.writeHead(400); res.end('request error');
       });
+      req.on('data', function(c) { body += c; });
       req.on('end', function() {
+        if (aborted) return;
         try { JSON.parse(body); } catch (e) { res.writeHead(400); res.end('invalid json'); return; }
         const tmp = modelPath + '.tmp';
         fs.writeFile(tmp, body, function(werr) {
-          if (werr) { res.writeHead(500); res.end('write error'); return; }
+          if (werr) { console.error('write error:', werr); res.writeHead(500); res.end('write error'); return; }
           fs.rename(tmp, modelPath, function(rerr) {
-            if (rerr) { fs.unlink(tmp, function(){}); res.writeHead(500); res.end('rename error'); return; }
+            if (rerr) { console.error('rename error:', rerr); fs.unlink(tmp, function(){}); res.writeHead(500); res.end('rename error'); return; }
             res.writeHead(200); res.end('ok');
           });
         });
@@ -93,4 +98,4 @@ function listen(port, attempts) {
     console.log('http://localhost:' + port + '/');
   });
 }
-listen(startPort, 20);
+listen(startPort, MAX_PORT_ATTEMPTS);

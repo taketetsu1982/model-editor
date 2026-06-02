@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { createFileIO, validateVariants, detectMode, loadModelFromServer, saveModelToServer } = require('./file-io.js');
@@ -226,6 +226,94 @@ describe('createFileIO サーバモード', () => {
       const ok = await io.writeFile();
       expect(ok).toBe(true);
       expect(putCalled).toBe(true);
+    });
+  });
+});
+
+describe('loadModelFromServer 追加', () => {
+  it('不正なJSON本文は parse failed で例外', async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      headers: { get: () => 'm.json' },
+      text: async () => 'not json',
+    });
+    await expect(loadModelFromServer(fetchImpl)).rejects.toThrow(/parse/i);
+  });
+  it('X-Model-Name ヘッダが無ければ product-model.json にフォールバック', async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      headers: { get: () => null },
+      text: async () => '{"objects":{},"views":{}}',
+    });
+    const result = await loadModelFromServer(fetchImpl);
+    expect(result.name).toBe('product-model.json');
+  });
+});
+
+describe('initServerMode フォールバック', () => {
+  it('fetchが!okならサーバモードに入らない', async () => {
+    await withDomStub(async () => {
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_noenter',
+        fetchImpl: async () => ({ ok: false, status: 500 }),
+      }));
+      await io.initServerMode();
+      expect(io.isServerMode()).toBe(false);
+    });
+  });
+  it('loadDataコールバック未登録ならサーバモードに入らない（空モデル誤上書き防止）', async () => {
+    await withDomStub(async () => {
+      // window['__test_unreg'] は登録しない
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_unreg',
+        fetchImpl: async () => ({
+          ok: true, headers: { get: () => 'm.json' }, text: async () => '{"objects":{},"views":{}}',
+        }),
+      }));
+      await io.initServerMode();
+      expect(io.isServerMode()).toBe(false);
+    });
+  });
+});
+
+describe('サーバモード autosave スケジューリング', () => {
+  it('markModified から debounce 後に PUT が発火する', async () => {
+    await withDomStub(async () => {
+      let putCount = 0;
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_sched',
+        getFullJson: () => ({ objects: {}, views: {} }),
+        fetchImpl: async (url, opts) => {
+          if (opts && opts.method === 'PUT') { putCount++; return { ok: true }; }
+          return { ok: true, headers: { get: () => 'm.json' }, text: async () => '{"objects":{},"views":{}}' };
+        },
+      }));
+      global.window['__test_sched'] = () => {};
+      await io.initServerMode();
+      vi.useFakeTimers();
+      io.markModified();
+      await vi.advanceTimersByTimeAsync(600);
+      vi.useRealTimers();
+      expect(putCount).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
+
+describe('サーバモード writeFile 失敗', () => {
+  it('PUTがrejectしてもwriteFileはfalseを返す（未処理rejectにしない）', async () => {
+    await withDomStub(async () => {
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_rej',
+        getFullJson: () => ({ objects: {}, views: {} }),
+        fetchImpl: async (url, opts) => {
+          if (opts && opts.method === 'PUT') throw new Error('network down');
+          return { ok: true, headers: { get: () => 'm.json' }, text: async () => '{"objects":{},"views":{}}' };
+        },
+      }));
+      global.window['__test_rej'] = () => {};
+      await io.initServerMode();
+      const ok = await io.writeFile();
+      expect(ok).toBe(false);
     });
   });
 });
