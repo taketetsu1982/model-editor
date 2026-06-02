@@ -32,6 +32,41 @@
   };
 
   /**
+   * detectMode(protocol) — 配信元プロトコルから動作モードを判定
+   *   'http:' / 'https:' → 'server'（localhostサーバ経由）
+   *   それ以外（'file:' 等） → 'file'（従来のFile System Access API）
+   */
+  exports.detectMode = function(protocol) {
+    return (protocol === 'http:' || protocol === 'https:') ? 'server' : 'file';
+  };
+
+  /**
+   * loadModelFromServer(fetchImpl) — GET /model で対象JSONを取得
+   *   戻り値: { data: object, name: string }
+   *   失敗時は例外を投げる
+   */
+  exports.loadModelFromServer = async function(fetchImpl) {
+    var res = await fetchImpl('/model');
+    if (!res || !res.ok) throw new Error('model fetch failed: ' + (res && res.status));
+    var name = (res.headers && res.headers.get && res.headers.get('X-Model-Name')) || 'product-model.json';
+    var text = await res.text();
+    return { data: JSON.parse(text), name: name };
+  };
+
+  /**
+   * saveModelToServer(full, fetchImpl) — PUT /model で対象JSONを保存
+   *   戻り値: true（成功） / false（失敗）
+   */
+  exports.saveModelToServer = async function(full, fetchImpl) {
+    var res = await fetchImpl('/model', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(full, null, 2) + '\n',
+    });
+    return !!(res && res.ok);
+  };
+
+  /**
    * createFileIO(config) — エディタ用ファイルI/Oインスタンスを生成
    *
    * config: {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { createFileIO, validateVariants } = require('./file-io.js');
+const { createFileIO, validateVariants, detectMode, loadModelFromServer, saveModelToServer } = require('./file-io.js');
 
 const TEST_IDS = { toast:'t', dot:'d', label:'l', hint:'h', edited:'e', autoBtn:'a', overlay:'o' };
 const TEST_KEYS = { undo:'__u', redo:'__r', copy:'__c', paste:'__p', cut:'__x', del:'__d' };
@@ -132,5 +132,54 @@ describe('validateVariants', () => {
       ],
     };
     expect(validateVariants(data)).toBeTruthy();
+  });
+});
+
+describe('detectMode', () => {
+  it('http/https はサーバモード', () => {
+    expect(detectMode('http:')).toBe('server');
+    expect(detectMode('https:')).toBe('server');
+  });
+  it('file はファイルモード', () => {
+    expect(detectMode('file:')).toBe('file');
+  });
+});
+
+describe('loadModelFromServer', () => {
+  it('GET /model の本文をパースし name と共に返す', async () => {
+    const fetchImpl = async (url) => {
+      expect(url).toBe('/model');
+      return {
+        ok: true,
+        headers: { get: (k) => (k === 'X-Model-Name' ? 'product-model.json' : null) },
+        text: async () => '{"objects":{"a":{}},"views":{}}',
+      };
+    };
+    const result = await loadModelFromServer(fetchImpl);
+    expect(result.name).toBe('product-model.json');
+    expect(result.data.objects.a).toEqual({});
+  });
+  it('レスポンスが ok でなければ例外', async () => {
+    const fetchImpl = async () => ({ ok: false, status: 500 });
+    await expect(loadModelFromServer(fetchImpl)).rejects.toThrow();
+  });
+});
+
+describe('saveModelToServer', () => {
+  it('PUT /model に整形JSONを送り ok を返す', async () => {
+    let captured = null;
+    const fetchImpl = async (url, opts) => {
+      captured = { url, opts };
+      return { ok: true };
+    };
+    const ok = await saveModelToServer({ objects: {}, views: {} }, fetchImpl);
+    expect(ok).toBe(true);
+    expect(captured.url).toBe('/model');
+    expect(captured.opts.method).toBe('PUT');
+    expect(captured.opts.body).toBe(JSON.stringify({ objects: {}, views: {} }, null, 2) + '\n');
+  });
+  it('ok でなければ false', async () => {
+    const ok = await saveModelToServer({}, async () => ({ ok: false }));
+    expect(ok).toBe(false);
   });
 });
