@@ -32,6 +32,46 @@
   };
 
   /**
+   * detectMode(protocol) — 配信元プロトコルから動作モードを判定
+   *   'http:' / 'https:' → 'server'（localhostサーバ経由）
+   *   それ以外（'file:' 等） → 'file'（従来のFile System Access API）
+   */
+  exports.detectMode = function(protocol) {
+    return (protocol === 'http:' || protocol === 'https:') ? 'server' : 'file';
+  };
+
+  /**
+   * loadModelFromServer(fetchImpl) — GET /model で対象JSONを取得
+   *   戻り値: { data: object, name: string }
+   *   失敗時は例外を投げる
+   */
+  exports.loadModelFromServer = async function(fetchImpl) {
+    var res = await fetchImpl('/model');
+    if (!res || !res.ok) throw new Error('model fetch failed: ' + (res && res.status));
+    // name はレスポンスヘッダ X-Model-Name、無ければ 'product-model.json'
+    var name = (res.headers && res.headers.get && res.headers.get('X-Model-Name')) || 'product-model.json';
+    var text = await res.text();
+    try {
+      return { data: JSON.parse(text), name: name };
+    } catch (pe) {
+      throw new Error('model JSON parse failed: ' + pe.message);
+    }
+  };
+
+  /**
+   * saveModelToServer(full, fetchImpl) — PUT /model で対象JSONを保存
+   *   戻り値: true（成功） / false（失敗）
+   */
+  exports.saveModelToServer = async function(full, fetchImpl) {
+    var res = await fetchImpl('/model', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(full, null, 2) + '\n',
+    });
+    return !!(res && res.ok);
+  };
+
+  /**
    * createFileIO(config) — エディタ用ファイルI/Oインスタンスを生成
    *
    * config: {
@@ -41,11 +81,14 @@
    *   loadDataKey: string,             // window上のロードコールバック名
    *   keys: { undo, redo, copy, paste, cut, del },  // window上の関数名
    *   filePickerId: string,
+   *   fetchImpl: typeof fetch (省略時はwindow.fetch。テスト注入用),
    * }
    */
   exports.createFileIO = function(config) {
     var ids = config.ids;
     var fileHandle = null, autoSaveEnabled = false, saveTimer = null, isSaving = false;
+    var serverMode = false, serverModelName = '';
+    var fetchImpl = config.fetchImpl || (typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null);
 
     function el(id) { return document.getElementById(id); }
 
@@ -66,17 +109,37 @@
 
     function markModified() {
       el(ids.edited).style.display = 'inline';
-      if (autoSaveEnabled && fileHandle) scheduleAutoSave();
+      if (autoSaveEnabled && (fileHandle || serverMode)) scheduleAutoSave();
     }
 
     function scheduleAutoSave() {
       if (saveTimer) clearTimeout(saveTimer);
-      if (!fileHandle || !autoSaveEnabled) return;
+      if ((!fileHandle && !serverMode) || !autoSaveEnabled) return;
       saveTimer = setTimeout(function() { writeFile(); }, 500);
     }
 
     // 成功時 true、失敗・スキップ時 false を返す
     async function writeFile() {
+      if (serverMode) {
+        if (isSaving) return false;
+        var full = config.getFullJson();
+        if (!full) return false;
+        isSaving = true;
+        updateStatus('saving', serverModelName, '');
+        try {
+          var ok = await exports.saveModelToServer(full, fetchImpl);
+          if (ok) { updateStatus('connected', serverModelName); el(ids.edited).style.display = 'none'; }
+          else { updateStatus('error', 'Save failed'); showToast('自動保存に失敗しました'); }
+          return ok;
+        } catch (e) {
+          console.error(e);
+          updateStatus('error', 'Save failed');
+          showToast('自動保存に失敗しました');
+          return false;
+        } finally {
+          isSaving = false;
+        }
+      }
       if (!fileHandle || isSaving) return false;
       var full = config.getFullJson();
       if (!full) return false;
@@ -121,6 +184,33 @@
       updateStatus('connected', h.name);
     }
 
+    // initServerMode() — サーバモードを初期化し /model を自動読込する
+    async function initServerMode() {
+      if (!fetchImpl) { updateStatus('error', 'fetch利用不可'); return; }
+      try {
+        var result = await exports.loadModelFromServer(fetchImpl);
+        var cb = window[config.loadDataKey];
+        if (!cb) {
+          // ロード先コールバックが未登録なら、空モデルの誤上書きを防ぐためサーバモードを開始しない
+          console.error('initServerMode: loadDataコールバック(' + config.loadDataKey + ')が未登録です');
+          updateStatus('error', '読込先が見つかりません');
+          return;
+        }
+        cb(result.data);
+        // データ受け渡し成功後にサーバモードと自動保存を有効化する
+        serverMode = true;
+        serverModelName = result.name;
+        autoSaveEnabled = true;
+        el(ids.autoBtn).style.display = 'flex';
+        el(ids.autoBtn).classList.add('active');
+        updateStatus('connected', serverModelName);
+      } catch (e) {
+        console.error('server mode init failed:', e);
+        // パースエラーとネットワーク/その他を区別して通知
+        updateStatus('error', /parse/i.test(e && e.message || '') ? 'モデルJSONが不正です' : 'サーバ読込失敗');
+      }
+    }
+
     function loadJson(text, fileName) {
       var d;
       try { d = JSON.parse(text); } catch (parseErr) {
@@ -132,6 +222,11 @@
     }
 
     async function handleConnect() {
+      if (serverMode) {
+        var sok = await writeFile();
+        if (sok) showToast('保存しました');
+        return;
+      }
       if (fileHandle) {
         var ok = await writeFile();
         if (ok) showToast('保存しました');
@@ -166,10 +261,10 @@
       autoSaveEnabled = !autoSaveEnabled;
       el(ids.autoBtn).classList.toggle('active', autoSaveEnabled);
       showToast('自動保存 ' + (autoSaveEnabled ? 'ON' : 'OFF'));
-      if (fileHandle) {
+      if (fileHandle || serverMode) {
         el(ids.dot).className = 'ed-dot ' + (autoSaveEnabled ? 'connected' : '');
       }
-      if (autoSaveEnabled && fileHandle) scheduleAutoSave();
+      if (autoSaveEnabled && (fileHandle || serverMode)) scheduleAutoSave();
     }
 
     function setupDragDrop() {
@@ -218,7 +313,7 @@
         var inField = e.target.closest('input,textarea,select,[contenteditable]');
         if (mod && e.key === 's') {
           e.preventDefault();
-          if (fileHandle) writeFile().then(function(ok) { if (ok) showToast('保存しました'); });
+          if (fileHandle || serverMode) writeFile().then(function(ok) { if (ok) showToast('保存しました'); });
           return;
         }
         if (inField) return;
@@ -249,6 +344,8 @@
       setupDragDrop: setupDragDrop,
       setupKeyboard: setupKeyboard,
       getFileHandle: function() { return fileHandle; },
+      initServerMode: initServerMode,
+      isServerMode: function() { return serverMode; },
     };
   };
 

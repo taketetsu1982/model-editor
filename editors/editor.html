@@ -83,6 +83,8 @@ function handleConnect(){return io.handleConnect();}
 function toggleAuto(){return io.toggleAuto();}
 io.setupDragDrop();
 io.setupKeyboard();
+// localhostサーバ経由で開かれた場合は対象JSONを自動読込する
+if(window.__editorIO.detectMode(location.protocol)==='server'){io.initServerMode();}
 </script>
 
 <script type="text/babel">
