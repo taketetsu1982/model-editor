@@ -81,6 +81,8 @@
   exports.createFileIO = function(config) {
     var ids = config.ids;
     var fileHandle = null, autoSaveEnabled = false, saveTimer = null, isSaving = false;
+    var serverMode = false, serverModelName = '';
+    var fetchImpl = config.fetchImpl || (typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null);
 
     function el(id) { return document.getElementById(id); }
 
@@ -101,17 +103,36 @@
 
     function markModified() {
       el(ids.edited).style.display = 'inline';
-      if (autoSaveEnabled && fileHandle) scheduleAutoSave();
+      if (autoSaveEnabled && (fileHandle || serverMode)) scheduleAutoSave();
     }
 
     function scheduleAutoSave() {
       if (saveTimer) clearTimeout(saveTimer);
-      if (!fileHandle || !autoSaveEnabled) return;
+      if ((!fileHandle && !serverMode) || !autoSaveEnabled) return;
       saveTimer = setTimeout(function() { writeFile(); }, 500);
     }
 
     // 成功時 true、失敗・スキップ時 false を返す
     async function writeFile() {
+      if (serverMode) {
+        if (isSaving) return false;
+        var fullS = config.getFullJson();
+        if (!fullS) return false;
+        isSaving = true;
+        updateStatus('saving', serverModelName, '');
+        try {
+          var ok = await exports.saveModelToServer(fullS, fetchImpl);
+          if (ok) { updateStatus('connected', serverModelName); el(ids.edited).style.display = 'none'; }
+          else updateStatus('error', 'Save failed');
+          return ok;
+        } catch (e) {
+          console.error(e);
+          updateStatus('error', 'Save failed');
+          return false;
+        } finally {
+          isSaving = false;
+        }
+      }
       if (!fileHandle || isSaving) return false;
       var full = config.getFullJson();
       if (!full) return false;
@@ -156,6 +177,26 @@
       updateStatus('connected', h.name);
     }
 
+    // initServerMode() — サーバモードを初期化し /model を自動読込する
+    async function initServerMode() {
+      if (!fetchImpl) { updateStatus('error', 'fetch利用不可'); return; }
+      try {
+        var result = await exports.loadModelFromServer(fetchImpl);
+        serverMode = true;
+        serverModelName = result.name;
+        autoSaveEnabled = true;
+        el(ids.autoBtn).style.display = 'flex';
+        el(ids.autoBtn).classList.add('active');
+        updateStatus('connected', serverModelName);
+        var cb = window[config.loadDataKey];
+        if (cb) cb(result.data);
+      } catch (e) {
+        console.error('server mode init failed:', e);
+        updateStatus('error', 'サーバ読込失敗');
+        // フォールバック: 従来のConnect UIのまま操作可能
+      }
+    }
+
     function loadJson(text, fileName) {
       var d;
       try { d = JSON.parse(text); } catch (parseErr) {
@@ -167,6 +208,11 @@
     }
 
     async function handleConnect() {
+      if (serverMode) {
+        var sok = await writeFile();
+        if (sok) showToast('保存しました');
+        return;
+      }
       if (fileHandle) {
         var ok = await writeFile();
         if (ok) showToast('保存しました');
@@ -253,7 +299,7 @@
         var inField = e.target.closest('input,textarea,select,[contenteditable]');
         if (mod && e.key === 's') {
           e.preventDefault();
-          if (fileHandle) writeFile().then(function(ok) { if (ok) showToast('保存しました'); });
+          if (fileHandle || serverMode) writeFile().then(function(ok) { if (ok) showToast('保存しました'); });
           return;
         }
         if (inField) return;
@@ -284,6 +330,8 @@
       setupDragDrop: setupDragDrop,
       setupKeyboard: setupKeyboard,
       getFileHandle: function() { return fileHandle; },
+      initServerMode: initServerMode,
+      isServerMode: function() { return serverMode; },
     };
   };
 

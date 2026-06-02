@@ -183,3 +183,49 @@ describe('saveModelToServer', () => {
     expect(ok).toBe(false);
   });
 });
+
+// 最小DOMスタブ: updateStatus等が参照する要素を用意する
+function withDomStub(fn) {
+  const store = {};
+  const make = () => ({ className: '', textContent: '', style: {}, classList: { add(){}, remove(){}, toggle(){} } });
+  global.document = { getElementById: (id) => (store[id] || (store[id] = make())) };
+  global.window = global.window || {};
+  return Promise.resolve(fn()).finally(() => { delete global.document; });
+}
+
+describe('createFileIO サーバモード', () => {
+  it('initServerMode が /model を読み loadData を呼ぶ', async () => {
+    await withDomStub(async () => {
+      let loaded = null;
+      global.window['__test'] = (d) => { loaded = d; };
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test',
+        fetchImpl: async () => ({
+          ok: true,
+          headers: { get: () => 'product-model.json' },
+          text: async () => '{"objects":{"x":{}},"views":{}}',
+        }),
+      }));
+      await io.initServerMode();
+      expect(loaded.objects.x).toEqual({});
+      expect(io.isServerMode()).toBe(true);
+    });
+  });
+
+  it('サーバモードの writeFile は PUT /model を呼ぶ', async () => {
+    await withDomStub(async () => {
+      let putCalled = false;
+      const io = createFileIO(makeConfig({
+        getFullJson: () => ({ objects: {}, views: {} }),
+        fetchImpl: async (url, opts) => {
+          if (opts && opts.method === 'PUT') { putCalled = true; return { ok: true }; }
+          return { ok: true, headers: { get: () => 'm.json' }, text: async () => '{"objects":{},"views":{}}' };
+        },
+      }));
+      await io.initServerMode();
+      const ok = await io.writeFile();
+      expect(ok).toBe(true);
+      expect(putCalled).toBe(true);
+    });
+  });
+});
