@@ -116,12 +116,12 @@
     async function writeFile() {
       if (serverMode) {
         if (isSaving) return false;
-        var fullS = config.getFullJson();
-        if (!fullS) return false;
+        var full = config.getFullJson();
+        if (!full) return false;
         isSaving = true;
         updateStatus('saving', serverModelName, '');
         try {
-          var ok = await exports.saveModelToServer(fullS, fetchImpl);
+          var ok = await exports.saveModelToServer(full, fetchImpl);
           if (ok) { updateStatus('connected', serverModelName); el(ids.edited).style.display = 'none'; }
           else updateStatus('error', 'Save failed');
           return ok;
@@ -247,10 +247,10 @@
       autoSaveEnabled = !autoSaveEnabled;
       el(ids.autoBtn).classList.toggle('active', autoSaveEnabled);
       showToast('自動保存 ' + (autoSaveEnabled ? 'ON' : 'OFF'));
-      if (fileHandle) {
+      if (fileHandle || serverMode) {
         el(ids.dot).className = 'ed-dot ' + (autoSaveEnabled ? 'connected' : '');
       }
-      if (autoSaveEnabled && fileHandle) scheduleAutoSave();
+      if (autoSaveEnabled && (fileHandle || serverMode)) scheduleAutoSave();
     }
 
     function setupDragDrop() {
