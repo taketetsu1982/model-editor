@@ -21,7 +21,9 @@ if (!fs.existsSync(modelPath)) {
 }
 
 const server = http.createServer(function(req, res) {
-  const urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath;
+  try { urlPath = decodeURIComponent(req.url.split('?')[0]); }
+  catch (e) { res.writeHead(400); res.end('bad url'); return; }
 
   // /model — 対象JSONの読み書き
   if (urlPath === '/model') {
@@ -39,13 +41,17 @@ const server = http.createServer(function(req, res) {
     if (req.method === 'PUT') {
       let body = '';
       req.on('data', function(c) { body += c; });
+      req.on('error', function(e) {
+        console.error('リクエスト読み取りエラー:', e.message);
+        res.writeHead(400); res.end('request error');
+      });
       req.on('end', function() {
         try { JSON.parse(body); } catch (e) { res.writeHead(400); res.end('invalid json'); return; }
         const tmp = modelPath + '.tmp';
         fs.writeFile(tmp, body, function(werr) {
           if (werr) { res.writeHead(500); res.end('write error'); return; }
           fs.rename(tmp, modelPath, function(rerr) {
-            if (rerr) { res.writeHead(500); res.end('rename error'); return; }
+            if (rerr) { fs.unlink(tmp, function(){}); res.writeHead(500); res.end('rename error'); return; }
             res.writeHead(200); res.end('ok');
           });
         });
