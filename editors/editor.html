@@ -295,16 +295,24 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   const selId=selByDevice.current[deviceTab]||null;
   const setSelId=id=>{selByDevice.current={...selByDevice.current,[deviceTab]:id};forceUpdate(n=>n+1);};
   const[showDeviceEdit,setShowDeviceEdit]=useState(false);
-  const canvas=useCanvas({items:(model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),itemW:SCR_MIN_W,itemH:100,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setSelId(null);},[]),onMarqueeEnd:useCallback((rect,shift)=>{
+  const dragHRef=useRef(null);
+  const canvas=useCanvas({items:(model.screens||[]).filter(s=>(s.device||devices[0])===deviceTab),itemW:SCR_MIN_W,itemH:100,savedViewState,onViewStateChange,loadGenRef,onEscape:useCallback(()=>{setSelId(null);const h=dragHRef.current;if(h){h.setMultiSel(new Set());h.multiOffsets.current={};}},[]),onMarqueeEnd:useCallback((rect,shift)=>{
+  const hit=new Set();
   const items2=(model.screens||[]).filter(s=>(s.device||(model.devices||["mobile"])[0])===deviceTab);
-  for(var i=0;i<items2.length;i++){
-    const sc=items2[i];const{w:cw,h:ch}=scrCardSize(sc,model.views,model.objects);
-    if(rectsIntersect(sc.x||0,sc.y||0,cw,ch,rect.x,rect.y,rect.w,rect.h)){setSelId(sc.id);return;}
-  }
+  items2.forEach(sc=>{
+    const{w:cw,h:ch}=scrCardSize(sc,model.views,model.objects);
+    if(rectsIntersect(sc.x||0,sc.y||0,cw,ch,rect.x,rect.y,rect.w,rect.h)) hit.add(sc.id);
+  });
+  if(hit.size===0)return;
+  const h=dragHRef.current;if(!h)return;
+  if(shift){h.setMultiSel(prev=>{const next=new Set(prev);hit.forEach(id=>next.add(id));return next;});}
+  else{h.setMultiSel(hit);}
+  setSelId(null);h.multiOffsets.current={};
 },[model.screens,model.views,model.objects,deviceTab])});
   const{svgRef,zoom,setZoom,pan,setPan,panning,spaceHeld,marquee}=canvas;
-  const dragH=useDrag({canvas,setModel,setModelSilent,itemsKey:'screens',enableMultiSel:false});
-  const{drag,dOff}=dragH;
+  const dragH=useDrag({canvas,setModel,setModelSilent,itemsKey:'screens'});
+  dragHRef.current=dragH;
+  const{drag,multiSel,setMultiSel,dOff}=dragH;
   const selScreen=selId?(model.screens||[]).find(s=>s.id===selId):null;
 
   const addScreen=()=>{const id=uid();setModel(m=>({...m,screens:[...(m.screens||[]),{id,name:"New Screen",device:deviceTab,paneIds:[],x:120/zoom+pan.x,y:120/zoom+pan.y}]}));setSelId(id);};
@@ -320,9 +328,11 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
   const items=byDevice[deviceTab]||[];
 
   useEffect(()=>{onSelChange?.(selId);},[selId]);
+  // デバイスタブ切替時は複数選択をクリア（multiSelはデバイス横断のSetのため）
+  useEffect(()=>{setMultiSel(new Set());},[deviceTab]);
 
   // キャンバス操作
-  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();setSelId(id);dragH.startDrag(e,id,(model.screens||[]),null);};
+  const onBoxMD=(e,id)=>{if(spaceHeld){canvas.onBgMouseDown(e);return;}e.stopPropagation();const result=dragH.startDrag(e,id,(model.screens||[]),selId);if(result.clearSel)setSelId(null);if(result.selectId)setSelId(result.selectId);};
   const onMM=useCallback(e=>{if(spaceHeld&&canvas.onMouseMove(e))return;if(dragH.dragMove(e))return;canvas.onMouseMove(e);},[spaceHeld,dragH.dragMove,canvas.onMouseMove]);
   const onUp=()=>{if(spaceHeld){canvas.onMouseUpOrLeave();return;}dragH.dragEnd();canvas.onMouseUpOrLeave();};
 
@@ -338,7 +348,7 @@ function ScreenView({model,setModel,setModelSilent,onSelChange,onSplit,savedView
             <defs><pattern id="scrdots" width={24/zoom} height={24/zoom} patternUnits="userSpaceOnUse" x={(-pan.x*zoom)%24} y={(-pan.y*zoom)%24}><circle cx={1/zoom} cy={1/zoom} r={1/zoom} fill="#E0E0E0"/></pattern><marker id="scrarr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9AA0A6"/></marker></defs>
             <rect width="100%" height="100%" fill="url(#scrdots)" data-bg="1" onMouseDown={canvas.onBgMouseDown}/>
             <g transform={`scale(${zoom}) translate(${-pan.x},${-pan.y})`}>
-            {items.map(sc=>{const isSel=selId===sc.id;const sx=sc.x||0,sy=sc.y||0;const panes=(sc.paneIds||[]).map(pid=>model.views.find(v=>v.id===pid)).filter(Boolean);const{w:cardW,h:cardH}=scrCardSize(sc,model.views,model.objects);return(
+            {items.map(sc=>{const isSel=selId===sc.id||multiSel.has(sc.id);const sx=sc.x||0,sy=sc.y||0;const panes=(sc.paneIds||[]).map(pid=>model.views.find(v=>v.id===pid)).filter(Boolean);const{w:cardW,h:cardH}=scrCardSize(sc,model.views,model.objects);return(
               <g key={sc.id} transform={`translate(${sx},${sy})`} onMouseDown={e=>onBoxMD(e,sc.id)} style={{cursor:drag?"grabbing":"grab"}}>
                 <rect x={1} y={2} width={cardW} height={cardH} rx={14} fill="rgba(0,0,0,0.04)"/>
                 <rect width={cardW} height={cardH} rx={14} fill="white"/>
@@ -529,6 +539,13 @@ function useClipboard({tab, activeModel, effectiveSetModel, objSelId, setObjSelI
         showToast('Deleted relation');
         return true;
       }
+      const multiO=window.__edGetMultiSel?.();
+      if(multiO&&multiO.size>0){
+        effectiveSetModel(m=>({...m,objects:m.objects.filter(e=>!multiO.has(e.id))}));
+        window.__edSetMultiSel?.(new Set());
+        showToast('Deleted '+multiO.size+' objects');
+        return true;
+      }
       if(!objSelId)return false;
       const ent=activeModel.objects.find(e=>e.id===objSelId);
       if(!ent)return false;
@@ -546,6 +563,13 @@ function useClipboard({tab, activeModel, effectiveSetModel, objSelId, setObjSelI
         showToast('Deleted edge');
         return true;
       }
+      const multiV=window.__edGetMultiSel?.();
+      if(multiV&&multiV.size>0){
+        effectiveSetModel(m=>({...m,views:m.views.filter(s=>!multiV.has(s.id)),paneGraph:m.paneGraph.filter(t=>!multiV.has(t.from)&&!multiV.has(t.to)),screens:(m.screens||[]).map(sc=>({...sc,paneIds:(sc.paneIds||[]).filter(p=>!multiV.has(p))}))}));
+        window.__edSetMultiSel?.(new Set());
+        showToast('Deleted '+multiV.size+' views');
+        return true;
+      }
       if(!vwId)return false;
       const vw=activeModel.views.find(s=>s.id===vwId);
       if(!vw)return false;
@@ -554,6 +578,13 @@ function useClipboard({tab, activeModel, effectiveSetModel, objSelId, setObjSelI
       return true;
     }
     if(tab==='screen'){
+      const multiS=window.__edGetMultiSel?.();
+      if(multiS&&multiS.size>0){
+        effectiveSetModel(m=>({...m,screens:(m.screens||[]).filter(s=>!multiS.has(s.id))}));
+        window.__edSetMultiSel?.(new Set());
+        showToast('Deleted '+multiS.size+' screens');
+        return true;
+      }
       const scId=scrSelRef.current;
       if(!scId)return false;
       const sc=(activeModel.screens||[]).find(s=>s.id===scId);
@@ -646,6 +677,11 @@ function useClipboard({tab, activeModel, effectiveSetModel, objSelId, setObjSelI
       return false;
     }
     if(tab==='screen'){
+      const multi=window.__edGetMultiSel?.();
+      if(multi&&multi.size>0){
+        effectiveSetModel(m=>({...m,screens:(m.screens||[]).map(s=>multi.has(s.id)?{...s,x:(s.x||0)+dx,y:(s.y||0)+dy}:s)}));
+        return true;
+      }
       const scId=scrSelRef.current;
       if(scId){
         effectiveSetModel(m=>({...m,screens:(m.screens||[]).map(s=>s.id===scId?{...s,x:(s.x||0)+dx,y:(s.y||0)+dy}:s)}));
