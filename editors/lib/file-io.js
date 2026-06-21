@@ -206,8 +206,12 @@
         updateStatus('connected', serverModelName);
       } catch (e) {
         console.error('server mode init failed:', e);
-        // パースエラーとネットワーク/その他を区別して通知
-        updateStatus('error', /parse/i.test(e && e.message || '') ? 'モデルJSONが不正です' : 'サーバ読込失敗');
+        // サーバから読めない場合はファイルを開くフォールバックへ誘導する。
+        // serverMode は false のままなので、Connectボタン押下で showOpenFilePicker が動く。
+        // パースエラーとネットワーク/その他を区別して通知する。
+        var msg = /parse/i.test(e && e.message || '') ? 'モデルJSONが不正です' : 'サーバ読込失敗';
+        updateStatus('error', msg, 'クリックでファイルを開く');
+        showToast('サーバから読み込めませんでした。Connectからファイルを開いてください');
       }
     }
 
