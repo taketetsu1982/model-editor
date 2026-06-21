@@ -190,7 +190,7 @@ function withDomStub(fn) {
   const make = () => ({ className: '', textContent: '', style: {}, classList: { add(){}, remove(){}, toggle(){} } });
   global.document = { getElementById: (id) => (store[id] || (store[id] = make())) };
   global.window = global.window || {};
-  return Promise.resolve(fn()).finally(() => { delete global.document; });
+  return Promise.resolve(fn(store)).finally(() => { delete global.document; });
 }
 
 describe('createFileIO サーバモード', () => {
@@ -259,6 +259,18 @@ describe('initServerMode フォールバック', () => {
       }));
       await io.initServerMode();
       expect(io.isServerMode()).toBe(false);
+    });
+  });
+  it('fetch失敗時はファイルを開くフォールバックへ誘導する（ヒント表示）', async () => {
+    await withDomStub(async (store) => {
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_fb_hint',
+        fetchImpl: async () => ({ ok: false, status: 500 }),
+      }));
+      await io.initServerMode();
+      expect(io.isServerMode()).toBe(false);
+      // Connectボタンのヒントがファイルを開く導線を示す
+      expect(store[TEST_IDS.hint].textContent).toMatch(/ファイル/);
     });
   });
   it('loadDataコールバック未登録ならサーバモードに入らない（空モデル誤上書き防止）', async () => {
