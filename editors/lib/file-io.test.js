@@ -261,7 +261,7 @@ describe('initServerMode フォールバック', () => {
       expect(io.isServerMode()).toBe(false);
     });
   });
-  it('fetch失敗時はファイルを開くフォールバックへ誘導する（ヒント表示）', async () => {
+  it('fetch失敗時はファイルを開くフォールバックへ誘導する（ステータス・ヒント・トースト）', async () => {
     await withDomStub(async (store) => {
       const io = createFileIO(makeConfig({
         loadDataKey: '__test_fb_hint',
@@ -269,8 +269,28 @@ describe('initServerMode フォールバック', () => {
       }));
       await io.initServerMode();
       expect(io.isServerMode()).toBe(false);
+      // ネットワーク系失敗はラベルに「サーバ読込失敗」
+      expect(store[TEST_IDS.label].textContent).toMatch(/サーバ読込失敗/);
       // Connectボタンのヒントがファイルを開く導線を示す
-      expect(store[TEST_IDS.hint].textContent).toMatch(/ファイル/);
+      expect(store[TEST_IDS.hint].textContent).toMatch(/ファイルを開く/);
+      // トーストでもユーザーに通知する
+      expect(store[TEST_IDS.toast].textContent).toMatch(/ファイルを開いて/);
+    });
+  });
+  it('不正JSON応答時は「モデルJSONが不正」を表示しつつフォールバック導線を出す', async () => {
+    await withDomStub(async (store) => {
+      const io = createFileIO(makeConfig({
+        loadDataKey: '__test_fb_parse',
+        fetchImpl: async () => ({
+          ok: true, headers: { get: () => 'm.json' }, text: async () => 'not json',
+        }),
+      }));
+      await io.initServerMode();
+      expect(io.isServerMode()).toBe(false);
+      // パースエラー分岐はラベルに「不正」
+      expect(store[TEST_IDS.label].textContent).toMatch(/不正/);
+      // パースエラーでもファイルを開く導線は出す
+      expect(store[TEST_IDS.hint].textContent).toMatch(/ファイルを開く/);
     });
   });
   it('loadDataコールバック未登録ならサーバモードに入らない（空モデル誤上書き防止）', async () => {
