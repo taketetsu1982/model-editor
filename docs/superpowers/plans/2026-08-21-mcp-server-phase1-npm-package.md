@@ -44,8 +44,8 @@ Phase 2（MCP サーバー本体）が `@modelcontextprotocol/sdk` を依存に�
 `docs/superpowers/specs/2026-08-21-mcp-server-design.md#d群-契約の精度` の CLI 表が正。
 plan では再掲しない。Phase 1 が実装するのは同表のうち `model-editor serve <modelPath> [port]` のみ。
 
-`editors/server.js` の起動インターフェース（引数 `<modelPath> [port]` / 起動成功時に stdout へ
-`http://localhost:<port>/` を 1 行）は**変更しないことが契約**である。`bin` はこれを再利用する側に立つ。
+`editors/server.js` の起動インターフェースは**変更しないことが契約**である（本文は spec D群の契約 (3)
+と B群 grounding 表が正）。`bin` はこれを再利用する側に立つ。
 
 ## UI 裁量範囲
 
@@ -135,7 +135,7 @@ npm exec model-editor -- serve sample/product-model.json 8791 &
 sleep 1; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8791/model; kill %1
 node bin/model-editor.js; echo "exit=$?"
 node bin/model-editor.js bogus; echo "exit=$?"
-node bin/model-editor.js mcp 2>&1 >/dev/null | grep -qi 'phase 2'; echo "mcp_msg=$?"
+node bin/model-editor.js mcp 2>&1 >/dev/null | grep -q 'Phase 2'; echo "mcp_msg=$?"
 node bin/model-editor.js mcp; echo "exit=$?"
 npm test
 ```

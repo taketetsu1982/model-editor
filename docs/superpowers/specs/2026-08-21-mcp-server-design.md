@@ -23,7 +23,7 @@ model-editor を MCP サーバーとして配布し、任意の MCP クライア
 |---|---|
 | サーバー自身による LLM 呼び出し（`generate` を tool 化する） | PRD からのモデル抽出はホスト側 LLM の仕事。サーバーが LLM を呼ぶ設計にすると API キー管理・課金・プロバイダ選択が新規に発生し、「どのクライアントからでも使える」という目的と直交する |
 | クラウド／リモート実行対応（ホスト版エディタ） | 人間承認済みの判断としてローカル限定。`open_editor` は localhost バインドとブラウザを前提とする |
-| `validate_model`（`schema.md` の制約の機械検証） | 価値はあるが検証ロジックの新規実装が必要で Epic が肥大する。#51 に残し、別 spec とする |
+| `validate_model`（`schema.md` の制約の機械検証） | 価値はあるが検証ロジックの新規実装が必要で Epic が肥大する。#51 で追跡し、別 spec とする |
 | CDN 依存のベンダリング・`open` のクロスプラットフォーム対応 | 設計判断を伴わない独立した不具合修正。本 spec を通さず個別 PR で出す |
 
 ### 成功条件
@@ -67,8 +67,8 @@ model-editor/
 | Phase | 内容 | 対応 US |
 |---|---|---|
 | 1 | npm パッケージ化・`.gitignore`・vitest を devDependency 化してテストを実行可能にする | US-04（一部） |
-| 2 | MCP サーバー本体の実装 | US-01 / US-02 / US-03 |
-| 3 | 手法論の single source 化、`SKILL.md` から `{EDITOR_DIR}` を除去 | US-04（残り）/ US-05 |
+| 2 | MCP サーバー本体の実装 | US-01 / US-02 / US-03 / AC-04-1 |
+| 3 | 手法論の single source 化、`SKILL.md` から `{EDITOR_DIR}` を除去 | US-04（AC-04-1 を除く残り）/ US-05 |
 
 Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を入れられない）。Phase 3 は Phase 2 完了後でないと参照先が確定しない。**直列**である。
 
