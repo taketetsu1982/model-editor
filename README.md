@@ -1,33 +1,35 @@
 # Model Editor
 
-OOUIに基づくプロダクトモデルエディタ。オブジェクト（データモデル）とビュー（ペイン）を1つのJSONで統合管理し、ブラウザ上で視覚的に編集できる。
+An editor where AI and humans design a product's objects together, based on OOUI (Object-Oriented User Interface). AI decomposes your documents into three layers — objects (the data model), panes (the building blocks of screens), and screens (per-device pane composition) — and generates them. Everything is managed in a single JSON file and can be edited visually in the browser.
 
-## 概要
+*[日本語版 (Japanese)](README.ja.md)*
+
+## Overview
 
 ```
-例: メールアプリの場合
+Example: a mail application
 
-オブジェクト層（Object タブ）
-  メールボックス ──*── 受信メール
-       :                    :
+Object layer (Object tab)
+  Mailbox ──*── Message
+     :              :
 - - - - - - - - - - - - - - - - - -
-       :              *     :
-ペイン層（Pane タブ）
-  コレクション ──→ コレクション ──→ シングル
- (一覧表示)      (一覧表示)      (詳細表示)
-       :              :              :
+     :        *     :
+Pane layer (Pane tab)
+  Collection ──→ Collection ──→ Single
+   (list view)    (list view)    (detail view)
+     :              :              :
 - - - - - - - - - - - - - - - - - -
-       :              :              :
-スクリーン層（Screen タブ）
-  mobile: [コレクション]
-  desktop: [コレクション, シングル]
+     :              :              :
+Screen layer (Screen tab)
+  mobile:  [Collection]
+  desktop: [Collection, Single]
 ```
 
-- **Object タブ** — オブジェクトとリレーションを定義
-- **Pane タブ** — ペイン（collection / single）とPane Graph（遷移）を定義
-- **Screen タブ** — デバイスごとにペインをグルーピングして画面を構成
+- **Object tab** — define objects and their relations
+- **Pane tab** — define panes (collection / single) and the Pane Graph (transitions)
+- **Screen tab** — compose screens by grouping panes per device
 
-## JSON構造
+## JSON structure
 
 ```json
 {
@@ -39,79 +41,79 @@ OOUIに基づくプロダクトモデルエディタ。オブジェクト（デ�
 }
 ```
 
-| フィールド | タブ | 説明 |
+| Field | Tab | Description |
 |---|---|---|
-| `devices` | Screen | デバイス一覧（文字列配列） |
-| `objects` | Object | オブジェクト定義（名前・リレーション） |
-| `views` | Pane | ペイン定義（collection / single） |
-| `paneGraph` | Pane | Pane Graph — ペイン間の辺定義（drilldown / embed） |
-| `screens` | Screen | スクリーン定義（デバイス別ペイン構成） |
+| `devices` | Screen | List of devices (array of strings) |
+| `objects` | Object | Object definitions (name, relations) |
+| `views` | Pane | Pane definitions (collection / single) |
+| `paneGraph` | Pane | Pane Graph — edges between panes (drilldown / embed) |
+| `screens` | Screen | Screen definitions (pane composition per device) |
 
-## 使い方
+## Usage
 
-### 1. エディタを開く
+### 1. Open the editor
 
 ```bash
 open editors/editor.html
 ```
 
-### 2. JSONを接続
+### 2. Connect a JSON file
 
-- エディタにJSONファイルをドラッグ&ドロップ
-- または「Connect」ボタンからファイルを選択
+- Drag and drop a JSON file onto the editor
+- Or pick one with the "Connect" button
 
-### 3. 編集・保存
+### 3. Edit and save
 
-- Object / Pane / Screen タブで切り替えて編集
-- Auto Save ON で編集内容が自動保存される
-- `Cmd/Ctrl + S` で手動保存
+- Switch between the Object / Pane / Screen tabs to edit
+- With Auto Save ON, changes are saved automatically
+- `Cmd/Ctrl + S` saves manually
 
-## ファイル構成
+## Repository layout
 
 ```
 .claude-plugin/
-└── plugin.json              # Claude Codeプラグイン定義
+└── plugin.json              # Claude Code plugin manifest
 editors/
-├── editor.html              # 統合エディタ本体
+├── editor.html              # the editor itself
 └── lib/
-    ├── editor-base.css      # 共通CSSスタイル
-    ├── shared.js            # 共通関数・定数
-    ├── object-logic.js      # Object固有ロジック
-    ├── view-logic.js        # Pane固有ロジック
-    ├── file-io.js           # ファイルI/O基盤
-    └── ui-components.js     # 共通UIコンポーネント
+    ├── editor-base.css      # shared styles
+    ├── shared.js            # shared helpers and constants
+    ├── object-logic.js      # Object-specific logic
+    ├── view-logic.js        # Pane-specific logic
+    ├── file-io.js           # file I/O layer
+    └── ui-components.js     # shared UI components
 sample/
-└── product-model.json       # サンプルデータ
+└── product-model.json       # sample data
 skills/
-├── generate/SKILL.md        # /generate スキル定義
-└── edit/SKILL.md            # /edit スキル定義
+├── generate/SKILL.md        # /generate skill definition
+└── edit/SKILL.md            # /edit skill definition
 ```
 
-> テストファイル（`*.test.js`）は各ロジックファイルに並置。
+> Test files (`*.test.js`) sit next to the logic files they cover.
 
-## テスト
+## Tests
 
 ```bash
 npx vitest run
 ```
 
-## Claude Code プラグイン
+## Claude Code plugin
 
-このリポジトリはClaude Codeプラグインとして利用できる。
+This repository can be used as a Claude Code plugin.
 
-### ローカルテスト
+### Local testing
 
 ```bash
 claude --plugin-dir /path/to/model-editor
 ```
 
-### スキル
+### Skills
 
-| スキル | 説明 |
+| Skill | Description |
 |---|---|
-| `/generate` | PRD等からプロダクトモデルJSON一括生成 |
-| `/edit` | HTMLエディタをブラウザで開いて編集 |
+| `/generate` | Generate a full product model JSON from a PRD or similar document |
+| `/edit` | Open the HTML editor in a browser and edit visually |
 
-## ライセンス
+## License
 
 [MIT License](LICENSE)
