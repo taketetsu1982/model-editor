@@ -195,7 +195,7 @@ N/A。本 Epic は配布形態とプロトコル境界の変更であり、エ�
 | ネットワーク露出 | 既存通り `127.0.0.1` のみにバインドする。変更しない |
 | 依存 | `@modelcontextprotocol/sdk` を runtime 依存に、`vitest` を devDependency に入れる。それ以外は増やさない |
 | 後方互換 | Claude Code plugin 経路（`skills/`）は Phase 3 完了後も動作し続ける。MCP 未登録でも壊れない（AC-05-3） |
-| 検証 | 各 Phase で `npm test`。Phase 2 は加えて実クライアント（Claude Code と Codex の2系統）での手動疎通を必須とする |
+| 検証 | 各 Phase で `npm test`。Phase 2 は加えて実クライアント（Claude Code と Codex の2系統）での手動疎通を必須とする。**`npx github:` は開発環境の npm 設定で禁止されている**（`EALLOWGIT`）ため、配布経路の検証は `npm pack` した tarball をインストールして `bin` を叩く形で代替する（Phase 1 で実測・成功） |
 | バージョニング | `.claude-plugin/plugin.json` と `package.json` の version を一致させる。乖離を検知する手段は現状無い（#54） |
 | 配布 | GitHub 直参照（`npx github:taketetsu1982/model-editor`）。npm publish しない。詳細と Why not は D 群の CLI 節 |
 
