@@ -1,33 +1,35 @@
 # Model Editor
 
-OOUIに基づくプロダクトモデルエディタ。オブジェクト（データモデル）とビュー（ペイン）を1つのJSONで統合管理し、ブラウザ上で視覚的に編集できる。
+An editor where AI and humans design a product's objects together, based on OOUI (Object-Oriented User Interface). AI decomposes your documents into three layers — objects (the data model), panes (the building blocks of screens), and screens (per-device pane composition) — and generates them. Everything is managed in a single JSON file and can be edited visually in the browser.
 
-## 概要
+*[日本語版 (Japanese)](README.ja.md)*
+
+## Overview
 
 ```
-例: メールアプリの場合
+Example: a mail application
 
-オブジェクト層（Object タブ）
-  メールボックス ──*── 受信メール
-       :                    :
+Object layer (Object tab)
+  Mailbox ──*── Message
+     :              :
 - - - - - - - - - - - - - - - - - -
-       :              *     :
-ペイン層（Pane タブ）
-  コレクション ──→ コレクション ──→ シングル
- (一覧表示)      (一覧表示)      (詳細表示)
-       :              :              :
+     :        *     :
+Pane layer (Pane tab)
+  Collection ──→ Collection ──→ Single
+   (list view)    (list view)    (detail view)
+     :              :              :
 - - - - - - - - - - - - - - - - - -
-       :              :              :
-スクリーン層（Screen タブ）
-  mobile: [コレクション]
-  desktop: [コレクション, シングル]
+     :              :              :
+Screen layer (Screen tab)
+  mobile:  [Collection]
+  desktop: [Collection, Single]
 ```
 
-- **Object タブ** — オブジェクトとリレーションを定義
-- **Pane タブ** — ペイン（collection / single）とPane Graph（遷移）を定義
-- **Screen タブ** — デバイスごとにペインをグルーピングして画面を構成
+- **Object tab** — define objects and their relations
+- **Pane tab** — define panes (collection / single) and the Pane Graph (transitions)
+- **Screen tab** — compose screens by grouping panes per device
 
-## JSON構造
+## JSON structure
 
 ```json
 {
@@ -39,79 +41,104 @@ OOUIに基づくプロダクトモデルエディタ。オブジェクト（デ�
 }
 ```
 
-| フィールド | タブ | 説明 |
+| Field | Tab | Description |
 |---|---|---|
-| `devices` | Screen | デバイス一覧（文字列配列） |
-| `objects` | Object | オブジェクト定義（名前・リレーション） |
-| `views` | Pane | ペイン定義（collection / single） |
-| `paneGraph` | Pane | Pane Graph — ペイン間の辺定義（drilldown / embed） |
-| `screens` | Screen | スクリーン定義（デバイス別ペイン構成） |
+| `devices` | Screen | List of devices (array of strings) |
+| `objects` | Object | Object definitions (name, relations) |
+| `views` | Pane | Pane definitions (collection / single) |
+| `paneGraph` | Pane | Pane Graph — edges between panes (drilldown / embed) |
+| `screens` | Screen | Screen definitions (pane composition per device) |
 
-## 使い方
+### Variants
 
-### 1. エディタを開く
+Branching a model in the editor moves the layer keys into a `_variants` array, so that several design options can live side by side in one file:
+
+```json
+{
+  "_variants": [
+    { "id": "a", "name": "Option A", "active": true, "objects": [], "views": [], "paneGraph": [], "screens": {} },
+    { "id": "b", "name": "Option B", "objects": [], "views": [], "paneGraph": [], "screens": {} }
+  ]
+}
+```
+
+- The variant with `active: true` is the one currently shown on the canvas
+- "Keep" expands the active variant back to the top level and drops `_variants`
+- Once a single variant is left, `_variants` is removed and the file returns to its normal shape
+
+## Usage
+
+### 1. Start the editor
+
+```bash
+node editors/server.js path/to/product-model.json
+```
+
+The server binds to `127.0.0.1` only and prints its URL (`http://localhost:8765/`; it looks for a free port if 8765 is taken). Open that URL and the model loads on its own — edits are written straight back to the file, so there is no file picker and no permission dialog.
+
+Alternatively, open the editor as a plain file:
 
 ```bash
 open editors/editor.html
 ```
 
-### 2. JSONを接続
+In this mode, connect a JSON file by dragging it onto the editor or picking it with the "Connect" button.
 
-- エディタにJSONファイルをドラッグ&ドロップ
-- または「Connect」ボタンからファイルを選択
+### 2. Edit and save
 
-### 3. 編集・保存
+- Switch between the Object / Pane / Screen tabs to edit
+- With Auto Save ON, changes are saved automatically
+- `Cmd/Ctrl + S` saves manually
 
-- Object / Pane / Screen タブで切り替えて編集
-- Auto Save ON で編集内容が自動保存される
-- `Cmd/Ctrl + S` で手動保存
-
-## ファイル構成
+## Repository layout
 
 ```
 .claude-plugin/
-└── plugin.json              # Claude Codeプラグイン定義
+└── plugin.json              # Claude Code plugin manifest
 editors/
-├── editor.html              # 統合エディタ本体
+├── editor.html              # the editor itself
+├── server.js                # local server (serves the editor, reads/writes the model)
 └── lib/
-    ├── editor-base.css      # 共通CSSスタイル
-    ├── shared.js            # 共通関数・定数
-    ├── object-logic.js      # Object固有ロジック
-    ├── view-logic.js        # Pane固有ロジック
-    ├── file-io.js           # ファイルI/O基盤
-    └── ui-components.js     # 共通UIコンポーネント
+    ├── editor-base.css      # shared styles
+    ├── shared.js            # shared helpers and constants
+    ├── object-logic.js      # Object-specific logic
+    ├── view-logic.js        # Pane-specific logic
+    ├── variant-manager.js   # variant branching
+    ├── file-io.js           # file I/O layer
+    ├── server-core.js       # pure helpers for the server (no I/O)
+    └── ui-components.js     # shared UI components
 sample/
-└── product-model.json       # サンプルデータ
+└── product-model.json       # sample data
 skills/
-├── generate/SKILL.md        # /generate スキル定義
-└── edit/SKILL.md            # /edit スキル定義
+├── generate/SKILL.md        # /generate skill definition
+└── edit/SKILL.md            # /edit skill definition
 ```
 
-> テストファイル（`*.test.js`）は各ロジックファイルに並置。
+> Test files (`*.test.js`) sit next to the logic files they cover.
 
-## テスト
+## Tests
 
 ```bash
 npx vitest run
 ```
 
-## Claude Code プラグイン
+## Claude Code plugin
 
-このリポジトリはClaude Codeプラグインとして利用できる。
+This repository can be used as a Claude Code plugin.
 
-### ローカルテスト
+### Local testing
 
 ```bash
 claude --plugin-dir /path/to/model-editor
 ```
 
-### スキル
+### Skills
 
-| スキル | 説明 |
+| Skill | Description |
 |---|---|
-| `/generate` | PRD等からプロダクトモデルJSON一括生成 |
-| `/edit` | HTMLエディタをブラウザで開いて編集 |
+| `/generate` | Generate a full product model JSON from a PRD or similar document |
+| `/edit` | Open the HTML editor in a browser and edit visually |
 
-## ライセンス
+## License
 
 [MIT License](LICENSE)
