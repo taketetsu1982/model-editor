@@ -68,7 +68,7 @@ Task 2 は Task 1 に依存する（`package.json` の `bin` フィールドを�
 
 ## Task 1: パッケージ基盤の作成とテストの実行可能化
 
-変更ファイル: package.json, .gitignore
+変更ファイル: package.json, package-lock.json, .gitignore
 依存: なし
 予算: +40 行
 
@@ -76,7 +76,7 @@ Task 2 は Task 1 に依存する（`package.json` の `bin` フィールドを�
 
 - `npm install` 後に `npm test` で `editors/lib/*.test.js` の全テストが実行され、パスする（AC-04-3）
 - `node_modules/` と `.DS_Store` が git の未追跡ファイルとして現れない（AC-04-4）
-- `package.json` に `private: true` があり、`npm publish` が拒否される（AC-04-5）
+- `package.json` に `private: true` があり、実 publish が拒否される（AC-04-5。検証は下記の Why not）
 - `package.json` の `version` が `.claude-plugin/plugin.json` の `version`（現在 `0.14.2`）と一致する
 
 **制約**
@@ -92,7 +92,6 @@ Task 2 は Task 1 に依存する（`package.json` の `bin` フィールドを�
 npm install
 npm test
 git status --porcelain
-npm publish --dry-run; echo "exit=$?"
 node -e "const p=require('./package.json'),g=require('./.claude-plugin/plugin.json');
 if(p.private!==true)throw new Error('private:true が無い');
 if(p.version!==g.version)throw new Error('version 不一致: '+p.version+' vs '+g.version);
@@ -104,8 +103,12 @@ console.log('ok')"
 - `npm test` — 6 ファイル（file-io / object-logic / server-core / shared / variant-manager / view-logic）の
   テストが全て pass し、exit 0
 - `git status --porcelain` — `node_modules/` と `.DS_Store` を含む行が 1 つも出ない
-- `npm publish --dry-run` — `private: true` により拒否され、`exit=` が 0 以外
-- 最後の `node -e` — `ok` を出力して exit 0
+- `node -e` — `ok` を出力して exit 0。`private: true` と version 一致の両方をここで判定する
+
+**Why not（`npm publish --dry-run` で AC-04-5 を検証する）**: npm 11 の `--dry-run` は
+`private` を評価せず exit 0 を返す（実測: `private` の有無で挙動が変わらない）。
+実 publish は拒否するが、それは検証のために踏める操作ではない。
+フィールドの存在検査が、この AC に対して実行可能な唯一の証拠になる。
 
 ## Task 2: `bin/model-editor.js` の `serve` サブコマンド
 

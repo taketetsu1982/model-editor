@@ -1,0 +1,21 @@
+{
+  "name": "model-editor",
+  "version": "0.14.2",
+  "private": true,
+  "description": "An editor where AI and humans design a product's objects based on OOUI.",
+  "license": "MIT",
+  "author": "taketetsu1982",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taketetsu1982/model-editor.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
+}
