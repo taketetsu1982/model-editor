@@ -21,7 +21,7 @@ Phase 2（MCP サーバー本体）が `@modelcontextprotocol/sdk` を依存に�
 - `.gitignore` の新規作成
 - `vitest` を devDependency として宣言し、`npm test` で `editors/lib/*.test.js` が実行される状態にする
 - `bin/model-editor.js` の新規作成（サブコマンド分岐のうち `serve` のみ）
-- `.claude-plugin/plugin.json` と `package.json` の version 手動一致（spec G群 Open Issue #4 の Phase 1 での扱い）
+- `.claude-plugin/plugin.json` と `package.json` の version 手動一致（#54 の Phase 1 での扱い）
 
 対応 US: US-04（一部）。実装 AC: AC-04-2 / AC-04-3 / AC-04-4 / AC-04-5。
 
@@ -33,8 +33,8 @@ Phase 2（MCP サーバー本体）が `@modelcontextprotocol/sdk` を依存に�
 - `editors/server.js` の内部実装・外部インターフェース（引数と stdout 出力）の変更。
   変更すると Claude Code plugin 経路の `/edit` が同時に壊れる（spec
   `docs/superpowers/specs/2026-08-21-mcp-server-design.md#b群-構造`）
-- CI 設定の追加（spec G群 Open Issue #6）
-- `editor.html` の CDN 依存・`open` の macOS 依存（spec G群 Open Issue #2 / #3。独立した個別 PR）
+- CI 設定の追加（#56）
+- `editor.html` の CDN 依存・`open` の macOS 依存（#52 / #53。独立した個別 PR）
 - npm publish（`private: true` で禁止する側。spec
   `docs/superpowers/specs/2026-08-21-mcp-server-design.md#d群-契約の精度`）
 

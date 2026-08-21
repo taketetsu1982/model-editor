@@ -23,7 +23,7 @@ model-editor を MCP サーバーとして配布し、任意の MCP クライア
 |---|---|
 | サーバー自身による LLM 呼び出し（`generate` を tool 化する） | PRD からのモデル抽出はホスト側 LLM の仕事。サーバーが LLM を呼ぶ設計にすると API キー管理・課金・プロバイダ選択が新規に発生し、「どのクライアントからでも使える」という目的と直交する |
 | クラウド／リモート実行対応（ホスト版エディタ） | 人間承認済みの判断としてローカル限定。`open_editor` は localhost バインドとブラウザを前提とする |
-| `validate_model`（`schema.md` の制約の機械検証） | 価値はあるが検証ロジックの新規実装が必要で Epic が肥大する。Open Issues に残し、別 spec とする |
+| `validate_model`（`schema.md` の制約の機械検証） | 価値はあるが検証ロジックの新規実装が必要で Epic が肥大する。#51 に残し、別 spec とする |
 | CDN 依存のベンダリング・`open` のクロスプラットフォーム対応 | 設計判断を伴わない独立した不具合修正。本 spec を通さず個別 PR で出す |
 
 ### 成功条件
@@ -196,19 +196,26 @@ N/A。本 Epic は配布形態とプロトコル境界の変更であり、エ�
 | 依存 | `@modelcontextprotocol/sdk` を runtime 依存に、`vitest` を devDependency に入れる。それ以外は増やさない |
 | 後方互換 | Claude Code plugin 経路（`skills/`）は Phase 3 完了後も動作し続ける。MCP 未登録でも壊れない（AC-05-3） |
 | 検証 | 各 Phase で `npm test`。Phase 2 は加えて実クライアント（Claude Code と Codex の2系統）での手動疎通を必須とする |
-| バージョニング | `.claude-plugin/plugin.json` と `package.json` の version を一致させる。乖離を検知する手段は現状無い（Open Issues） |
+| バージョニング | `.claude-plugin/plugin.json` と `package.json` の version を一致させる。乖離を検知する手段は現状無い（#54） |
 | 配布 | GitHub 直参照（`npx github:taketetsu1982/model-editor`）。npm publish しない。詳細と Why not は D 群の CLI 節 |
 
 ## G群. 執筆規律 / Open Issues
 
-| # | 未解決事項 | 扱い |
+なし
+
+### スコープ外へ移した課題（GitHub Issue）
+
+本 spec 執筆時に挙がった未解決事項は全件 GitHub Issue へ移し、追跡先を spec の外に出した
+（spec は本 Epic の契約だけを持ち、Epic 外の課題を抱え込まない）。
+
+| Issue | 内容 | 本 Epic での扱い |
 |---|---|---|
-| 1 | `validate_model`（`schema.md` の制約を機械検証する tool） | 本 Epic のスコープ外。別 spec を立てる |
-| 2 | CDN 依存（`editor.html:29-31` の unpkg、`:7-8` の Google Fonts）— ネット制限環境で白画面になる | 独立した個別 PR。本 spec のスコープ外だが、クライアントが増えるほど踏まれるため優先度は高い |
-| 3 | `open` コマンドの macOS 依存 | 同上。なお MCP 経由ではブラウザを開くのはクライアント側の判断になるため、影響範囲は plugin 経路に限られる |
-| 4 | `plugin.json` と `package.json` の version 二重管理 | Phase 1 で人手同期とする。自動化は必要になってから |
-| 5 | エディタ編集中の外部変更を検知しない（最終書き込み勝ち） | 既存の制約であり本 Epic で悪化しない。明示的に扱わない |
-| 6 | CI が存在しない | 本 Epic では追加しない（`npm test` が通る状態を作るのが Phase 1 のスコープ）。CI 追加は別途 |
+| #51 | `validate_model`（`schema.md` の制約を機械検証する tool） | スコープ外。別 spec を立てる |
+| #52 | `editor.html` の CDN 依存（unpkg / Google Fonts）でネット制限環境が白画面になる | スコープ外。独立した個別 PR |
+| #53 | `open` コマンドの macOS 依存 | スコープ外。独立した個別 PR |
+| #54 | `plugin.json` と `package.json` の version 二重管理 | Phase 1 では人手同期とする。検知の自動化は本 Epic では行わない |
+| #55 | エディタ編集中の外部変更を検知しない（最終書き込み勝ち） | 既存の制約であり本 Epic で悪化しない。扱わない |
+| #56 | CI が存在しない | 追加しない。Phase 1 のスコープは `npm test` が通る状態を作るところまで |
 
 ### 反証レビューで検討し、退けた前提
 
