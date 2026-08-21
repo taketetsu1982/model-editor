@@ -1,6 +1,6 @@
 {
   "name": "model-editor",
-  "description": "OOUIに基づくモデルエディタ。企画情報からオブジェクトとビューを1つのJSONに生成し、ブラウザ上で視覚的に編集できる。",
+  "description": "An editor where AI and humans design a product's objects based on OOUI. Decomposes documents into objects, panes and screens, managed in a single JSON and edited visually in the browser.",
   "version": "0.14.2",
   "author": {
     "name": "taketetsu1982"

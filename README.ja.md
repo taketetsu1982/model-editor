@@ -49,20 +49,42 @@ OOUIに基づいてAIとヒトがプロダクトのオブジェクトを設計�
 | `paneGraph` | Pane | Pane Graph — ペイン間の辺定義（drilldown / embed） |
 | `screens` | Screen | スクリーン定義（デバイス別ペイン構成） |
 
+### バリアント
+
+エディタ上でモデルを分岐すると、各層のキーが `_variants` 配列の中へ移ります。複数の設計案を1つのファイルに並べて持てます。
+
+```json
+{
+  "_variants": [
+    { "id": "a", "name": "Option A", "active": true, "objects": [], "views": [], "paneGraph": [], "screens": {} },
+    { "id": "b", "name": "Option B", "objects": [], "views": [], "paneGraph": [], "screens": {} }
+  ]
+}
+```
+
+- `active: true` のバリアントが、キャンバスに表示されているもの
+- 「Keep」を押すと、アクティブなバリアントがトップレベルへ展開され `_variants` は削除される
+- バリアントが1つになった時点で `_variants` は解除され、通常の形に戻る
+
 ## 使い方
 
-### 1. エディタを開く
+### 1. エディタを起動する
+
+```bash
+node editors/server.js path/to/product-model.json
+```
+
+サーバは `127.0.0.1` のみにバインドし、URL（`http://localhost:8765/`。8765 が使用中なら空きポートを探す）を出力します。その URL を開くとモデルが自動で読み込まれ、編集内容はファイルへ直接書き戻されます。ファイル選択も権限ダイアログも不要です。
+
+ファイルとして直接開くこともできます。
 
 ```bash
 open editors/editor.html
 ```
 
-### 2. JSONを接続
+この場合は、JSONファイルをエディタにドラッグ&ドロップするか、「Connect」ボタンから選択して接続します。
 
-- エディタにJSONファイルをドラッグ&ドロップ
-- または「Connect」ボタンからファイルを選択
-
-### 3. 編集・保存
+### 2. 編集・保存
 
 - Object / Pane / Screen タブで切り替えて編集
 - Auto Save ON で編集内容が自動保存される
@@ -75,12 +97,15 @@ open editors/editor.html
 └── plugin.json              # Claude Codeプラグイン定義
 editors/
 ├── editor.html              # 統合エディタ本体
+├── server.js                # ローカルサーバ（エディタ配信・モデルの読み書き）
 └── lib/
     ├── editor-base.css      # 共通CSSスタイル
     ├── shared.js            # 共通関数・定数
     ├── object-logic.js      # Object固有ロジック
     ├── view-logic.js        # Pane固有ロジック
+    ├── variant-manager.js   # バリアント分岐
     ├── file-io.js           # ファイルI/O基盤
+    ├── server-core.js       # サーバの純粋ヘルパ（I/Oなし）
     └── ui-components.js     # 共通UIコンポーネント
 sample/
 └── product-model.json       # サンプルデータ

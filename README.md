@@ -49,20 +49,42 @@ Screen layer (Screen tab)
 | `paneGraph` | Pane | Pane Graph — edges between panes (drilldown / embed) |
 | `screens` | Screen | Screen definitions (pane composition per device) |
 
+### Variants
+
+Branching a model in the editor moves the layer keys into a `_variants` array, so that several design options can live side by side in one file:
+
+```json
+{
+  "_variants": [
+    { "id": "a", "name": "Option A", "active": true, "objects": [], "views": [], "paneGraph": [], "screens": {} },
+    { "id": "b", "name": "Option B", "objects": [], "views": [], "paneGraph": [], "screens": {} }
+  ]
+}
+```
+
+- The variant with `active: true` is the one currently shown on the canvas
+- "Keep" expands the active variant back to the top level and drops `_variants`
+- Once a single variant is left, `_variants` is removed and the file returns to its normal shape
+
 ## Usage
 
-### 1. Open the editor
+### 1. Start the editor
+
+```bash
+node editors/server.js path/to/product-model.json
+```
+
+The server binds to `127.0.0.1` only and prints its URL (`http://localhost:8765/`; it looks for a free port if 8765 is taken). Open that URL and the model loads on its own — edits are written straight back to the file, so there is no file picker and no permission dialog.
+
+Alternatively, open the editor as a plain file:
 
 ```bash
 open editors/editor.html
 ```
 
-### 2. Connect a JSON file
+In this mode, connect a JSON file by dragging it onto the editor or picking it with the "Connect" button.
 
-- Drag and drop a JSON file onto the editor
-- Or pick one with the "Connect" button
-
-### 3. Edit and save
+### 2. Edit and save
 
 - Switch between the Object / Pane / Screen tabs to edit
 - With Auto Save ON, changes are saved automatically
@@ -75,12 +97,15 @@ open editors/editor.html
 └── plugin.json              # Claude Code plugin manifest
 editors/
 ├── editor.html              # the editor itself
+├── server.js                # local server (serves the editor, reads/writes the model)
 └── lib/
     ├── editor-base.css      # shared styles
     ├── shared.js            # shared helpers and constants
     ├── object-logic.js      # Object-specific logic
     ├── view-logic.js        # Pane-specific logic
+    ├── variant-manager.js   # variant branching
     ├── file-io.js           # file I/O layer
+    ├── server-core.js       # pure helpers for the server (no I/O)
     └── ui-components.js     # shared UI components
 sample/
 └── product-model.json       # sample data
