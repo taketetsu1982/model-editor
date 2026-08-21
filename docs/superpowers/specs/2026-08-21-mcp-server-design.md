@@ -76,7 +76,7 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 
 | 用途 | 現状 | 置換後 |
 |---|---|---|
-| `skills/edit/SKILL.md:27-31` のサーバ起動 | `node {EDITOR_DIR}/server.js <path>` | `npx github:taketetsu1982/model-editor serve <path>` — 単純置換で等価 |
+| `skills/edit/SKILL.md:27-31` のサーバ起動 | `node {EDITOR_DIR}/server.js <path>` | `npx github:taketetsu1982/product-model-editor serve <path>` — 単純置換で等価 |
 | `skills/generate/SKILL.md:18,160` の出力先 | `{EDITOR_DIR}/product-model.json`（エディタ設置ディレクトリ固定） | **ユーザープロジェクト側**へ変更する |
 
 出力先の変更は**意図的な振る舞いの変更**である。npm 化後は「エディタ設置ディレクトリ」が npx のグローバルキャッシュを指すことになり、生成物の置き場所として成立しない。決め方は `skills/edit/SKILL.md:19-23` の既存の検出ロジックを踏襲する——引数でパスが渡ればそれ、省略時はプロジェクト内の `product-model.json` を 1 件検出。ただし **0 件時の挙動だけは edit と異なり**、edit が中断するのに対し generate はカレントディレクトリ直下に新規作成する（generate は新規モデルの書き出しが本来の用途であるため）。
@@ -112,8 +112,8 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 | AC-03-3 | `close_editor()` は起動中のサーバを停止する。起動していない場合もエラーにせず正常終了する |
 | AC-03-4 | **最後の MCP tool 呼び出しから 30 分**が経過したエディタサーバは自動停止する（`close_editor` の呼び忘れでプロセスが残らない）。ブラウザからのアクセスは起点に数えない |
 | AC-03-5 | `open_editor` の description に「ローカル実行環境専用」と明記され、bind 失敗時は汎用エラーではなく非対応である旨を返す |
-| AC-04-1 | `npx github:taketetsu1982/model-editor mcp` で MCP サーバーが stdio で起動する |
-| AC-04-2 | `npx github:taketetsu1982/model-editor serve <path>` で従来の localhost エディタサーバが起動する（既存 `node editors/server.js` と同じ挙動） |
+| AC-04-1 | `npx github:taketetsu1982/product-model-editor mcp` で MCP サーバーが stdio で起動する |
+| AC-04-2 | `npx github:taketetsu1982/product-model-editor serve <path>` で従来の localhost エディタサーバが起動する（既存 `node editors/server.js` と同じ挙動） |
 | AC-04-5 | `package.json` に `private: true` を置き、誤って npm publish されないようにする |
 | AC-04-3 | `npm test` で `editors/lib/*.test.js` の全テストが実行され、パスする |
 | AC-04-4 | `.gitignore` が `node_modules/` と `.DS_Store` を無視する |
@@ -179,7 +179,7 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 | `model-editor mcp` | stdio で MCP サーバーを起動 |
 | `model-editor serve <modelPath> [port]` | 既存 `editors/server.js` と同一の挙動 |
 
-**配布経路は GitHub 直参照に確定する**（`npx github:taketetsu1982/model-editor <subcommand>`）。npm publish は行わない——パッケージ名 `model-editor` の可用性が未確認であることに加え、publish は取り消しの効かない外部公開であり、本 Epic の目的（任意の MCP クライアントから使える）は GitHub 直参照で達成できるため、その不可逆判断を負う理由がない。誤 publish を防ぐため `package.json` に `private: true` を置く（AC-04-5）。
+**配布経路は GitHub 直参照に確定する**（`npx github:taketetsu1982/product-model-editor <subcommand>`）。npm publish は行わない——パッケージ名 `model-editor` の可用性が未確認であることに加え、publish は取り消しの効かない外部公開であり、本 Epic の目的（任意の MCP クライアントから使える）は GitHub 直参照で達成できるため、その不可逆判断を負う理由がない。誤 publish を防ぐため `package.json` に `private: true` を置く（AC-04-5）。
 
 Why not（npm publish）: コマンドが短くなり built-with 掲載の導線としても強いが、上記の通り目的に対して必須ではない。将来必要になった時点で `private` を外して publish すればよく、その判断を今する必要がない。
 
@@ -197,7 +197,7 @@ N/A。本 Epic は配布形態とプロトコル境界の変更であり、エ�
 | 後方互換 | Claude Code plugin 経路（`skills/`）は Phase 3 完了後も動作し続ける。MCP 未登録でも壊れない（AC-05-3） |
 | 検証 | 各 Phase で `npm test`。Phase 2 は加えて実クライアント（Claude Code と Codex の2系統）での手動疎通を必須とする |
 | バージョニング | `.claude-plugin/plugin.json` と `package.json` の version を一致させる。乖離を検知する手段は現状無い（Open Issues） |
-| 配布 | GitHub 直参照（`npx github:taketetsu1982/model-editor`）。npm publish しない。詳細と Why not は D 群の CLI 節 |
+| 配布 | GitHub 直参照（`npx github:taketetsu1982/product-model-editor`）。npm publish しない。詳細と Why not は D 群の CLI 節 |
 
 ## G群. 執筆規律 / Open Issues
 
