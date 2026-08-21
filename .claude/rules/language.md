@@ -1,13 +1,17 @@
 ## 言語 — このプロジェクトの上書き
 
-グローバル `~/.claude/rules/language.md` は「回答・ドキュメント・コメントは日本語」だが、
-**GitHub 上に出るもの（commit メッセージ・PR タイトル/本文・Issue タイトル/本文・PR コメント）は
-英語で書く**。理由: リポジトリは公開されており、OrcaRouter の built-with 掲載を含め
-日本語話者以外の閲覧を前提にするため。
+グローバル `~/.claude/rules/language.md` は日本語を既定とするが、このプロジェクトでは
+**GitHub の UI 上に表示される文は英語で書く**（commit メッセージ・PR タイトル/本文・
+PR コメント・Issue タイトル/本文）。書き手はセッション（Codex への委譲時は委譲プロンプトで伝える）。
 
-日本語のままにするもの（GitHub 上に出ないか、設計判断の記録として日本語が正である）:
+判定文: **その文は GitHub 上で不特定の閲覧者の目に入るか。** Yes なら英語、No なら日本語。
+リポジトリが公開されており、OrcaRouter の built-with 掲載を含め日本語話者以外の閲覧を
+前提にするため、この 1 問だけで決まる。
+
+判定の結果、日本語のままにするもの（GitHub 上では clone 後に読まれる位置にあり、
+不特定の閲覧者の導線に乗らない）:
 
 - ユーザーへの応答
-- `docs/superpowers/` 配下の spec / plan / designs
+- `docs/` 配下の spec / plan / designs
 - コード内コメント
 - `README.ja.md`（`README.md` は英語が正）

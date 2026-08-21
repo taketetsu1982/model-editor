@@ -135,6 +135,7 @@ npm exec model-editor -- serve sample/product-model.json 8791 &
 sleep 1; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8791/model; kill %1
 node bin/model-editor.js; echo "exit=$?"
 node bin/model-editor.js bogus; echo "exit=$?"
+node bin/model-editor.js mcp 2>&1 >/dev/null | grep -qi 'phase 2'; echo "mcp_msg=$?"
 node bin/model-editor.js mcp; echo "exit=$?"
 npm test
 ```
@@ -143,8 +144,9 @@ npm test
 
 - 前 2 ブロック — 起動直後の stdout に `http://localhost:8790/` / `http://localhost:8791/` が 1 行ずつ出て、
   `curl` が `200` を返す
-- 引数無し / `bogus` / `mcp` — いずれも stderr にメッセージが出て `exit=` が 0 以外。
-  `mcp` のメッセージは「未知のサブコマンド」ではなく「Phase 2 で実装予定」と読める内容であること
+- 引数無し / `bogus` / `mcp` — いずれも stderr にメッセージが出て `exit=` が 0 以外
+- `mcp_msg=0` — `mcp` の stderr が `Phase 2` を含む（「未知のサブコマンド」で片付けず、
+  実装予定であることが読み取れる）
 - `npm test` — Task 1 と同じく全て pass（回帰が無いこと）
 
 ## 検証
