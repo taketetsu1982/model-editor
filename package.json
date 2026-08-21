@@ -12,6 +12,9 @@
   "engines": {
     "node": ">=18"
   },
+  "bin": {
+    "model-editor": "bin/model-editor.js"
+  },
   "scripts": {
     "test": "vitest run"
   },
