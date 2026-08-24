@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/model-editor.js — model-editor の CLI 入口。サブコマンドを解釈して実体へ委ねる
 //   使い方: model-editor serve <modelPath> [port]
-//           model-editor mcp                     （Phase 2 で実装）
+//           model-editor mcp
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -39,8 +39,10 @@ switch (subcommand) {
     serve(rest);
     break;
   case 'mcp':
-    // 未知のサブコマンドと区別する。無言で成功すると、MCP クライアントは設定が効いたと誤解する。
-    fail('error: mcp サブコマンドは Phase 2 で実装予定です。現時点では利用できません');
+    require('../src/mcp/server.js').startServer().catch((error) => {
+      console.error(error instanceof Error ? error.stack : error);
+      process.exit(1);
+    });
     break;
   case undefined:
     fail('error: サブコマンドを指定してください');
