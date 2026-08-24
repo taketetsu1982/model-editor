@@ -53,14 +53,16 @@ model-editor/
 ├── .gitignore            ★新規
 ├── bin/model-editor.js   ★新規 — サブコマンド分岐（serve / mcp）
 ├── src/mcp/              ★新規 — MCP サーバー本体
-│   ├── server.js         ・  stdio サーバーの組み立て
-│   ├── tools.js          ・  tool 定義と実装
+│   ├── server.js         ・  stdio サーバーの組み立てと tools/ 配下の自動登録
+│   ├── tools/            ・  tool / resource / prompt の実装（系統ごとに 1 ファイル）
 │   └── editor-process.js ・  editors/server.js の起動・停止・アイドル監視
 ├── editors/              既存（server.js / editor.html / lib）
 └── skills/generate/*.md  既存 — 手法論の単一実体。MCP と plugin の両方が参照する
 ```
 
 責務境界: `bin/` は引数解釈のみ、`src/mcp/` はプロトコル境界のみ、実際のファイル I/O とサーバー配信は既存 `editors/` に委ねる。**既存 `editors/server.js` の外部インターフェース（引数と stdout 出力）は変更しない**——変更すると Claude Code plugin 側の `/edit` が同時に壊れる。
+
+Why not（tool を単一の `tools.js` に集約する）: 手法論・モデル I/O・エディタの 3 系統を 1 ファイルに置くと、独立して実装できる 3 つの作業が同じファイルを奪い合い、依存が無いのに直列化を強いられる。責務境界は変わらないので、`tools/` 配下へ系統ごとに分け、`server.js` がディレクトリを走査して登録する。手書きの登録リストを置かないのは、そのリストのファイルが同じ奪い合いを再現するため。
 
 ### Phase 分割（＝ PR 単位）
 
