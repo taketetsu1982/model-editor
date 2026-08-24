@@ -67,6 +67,11 @@ spec の外部契約ではなく、本 plan の Task を並列に流すために
 - テストから MCP クライアントとして接続するときは、各テストで spawn 手続きを書かず
   `src/mcp/test-client.js` を使う（起動 → stdio 接続 → `initialize` → teardown を提供する）。
   Task 1 が `server.test.js` のために必要とするものを、そのまま共有物として置く
+- **走査対象ディレクトリは注入可能にする**（既定は `src/mcp/tools/`）。テストは注入した一時
+  ディレクトリを使い、実 `src/mcp/tools/` を作成・削除しない。
+  Why: 「モジュール 0 件」も「特定のモジュールだけが居る」も、実ディレクトリを共有する限り
+  Task 2 以降は再現できない。注入口が無いと、Task 1 のテストが Task 2 のファイル追加で壊れる
+  （実測: `tools/` にモジュールを 1 つ置くと Task 1 のテストが 2 件失敗する）
 
 ## UI 裁量範囲
 
@@ -94,7 +99,7 @@ N/A。本 Phase はプロトコル境界の実装であり、エディタの画�
 
 ## Task 1: stdio MCP サーバーの起動基盤
 
-変更ファイル: package.json, package-lock.json, bin/model-editor.js, src/mcp/server.js, src/mcp/test-client.js, src/mcp/server.test.js
+変更ファイル: package.json, package-lock.json, bin/model-editor.js, src/mcp/server.js, src/mcp/test-client.js, src/mcp/server.test.js, docs/superpowers/plans/2026-08-24-mcp-server-phase2-mcp-server.md
 依存: なし
 予算: +230 行
 
@@ -103,7 +108,9 @@ N/A。本 Phase はプロトコル境界の実装であり、エディタの画�
 - `node bin/model-editor.js mcp` が stdio で MCP サーバーとして起動し、MCP クライアントの
   `initialize` に応答する（AC-04-1）。`npm pack` した tarball 経由の `model-editor mcp` でも同じ
 - `src/mcp/tools/` 配下に置かれた `register(ctx)` モジュールが起動時に自動登録される。
-  この時点では配下が空でも正常に起動する（tool 0 件のサーバーとして成立する）
+  **配下が空でも、ディレクトリ自体が存在しなくても**、モジュール 0 件として正常に起動する
+  （不在時にディレクトリを作らない）。Task 1 の変更ファイルに `tools/` 配下は 1 つも無く、
+  git も `npm pack` も空ディレクトリを運ばないので、**不在は Task 1 で確実に起こる**
 - capability として tools / resources / prompts の 3 つを宣言する。配下のモジュールが 0 件でも同じ
 - 標準出力は MCP のプロトコル通信だけが流れる。ログ・診断はすべて stderr へ出す
 - **stdin の EOF・クライアント切断・`SIGINT` / `SIGTERM` で `onShutdown` が発火し、`exit 0` で終了する**
@@ -142,13 +149,21 @@ echo "packed_exit=$?"
 grep -rnE 'console\.(log|info|dir|table)|process\.stdout\.write' src/mcp/ bin/ | grep -v '\.test\.js'
 echo "stdout_write_hits=$?"
 git status --porcelain | grep -c 'model-editor-.*\.tgz'
+test -e src/mcp/tools; echo "tools_dir_exists=$?"
 ```
 
 期待出力:
 
 - `npm test` — 既存 6 ファイル + 新規 `src/mcp/server.test.js` が全て pass し exit 0。
-  `server.test.js` は `test-client.js` 経由で接続し、`initialize` 応答・tool 0 件での
-  `tools/list` 成功・3 capability の宣言・teardown 後のプロセス消滅を判定する
+  `server.test.js` は `test-client.js` 経由で接続し、`initialize` 応答・3 capability の宣言・
+  teardown 後のプロセス消滅に加えて、**注入したディレクトリを使って**次の 2 つを判定する:
+  - 空ディレクトリ → `tools/list` `resources/list` `prompts/list` がいずれも空で成功する
+  - tool / resource / prompt を登録するモジュールを 1 つ置いたディレクトリ → 3 つの list に
+    それが現れる（登録 API が list ハンドラを持つため、fallback を先に張ると登録が例外になる。
+    この回帰を Task 2 が来る前に捕まえる）
+  - どちらも実 `src/mcp/tools/` を作成・削除しない（Task 2 以降のファイルと干渉しないこと）
+- `tools_dir_exists=1` — テスト実行後も実 `src/mcp/tools/` が存在しない。上の bullet を機械判定に
+  落とすための行で、**Task 1 限定**の期待値である（Task 2 が `guide.js` を置いた時点で 0 に反転する）
 - `initialize=ok` — stdio で JSON-RPC の応答が返る（AC-04-1）
 - `packed_exit=0` — tarball 経由の `model-editor mcp` が起動し、stdin の EOF で `exit 0` する
   （0 以外はすべて NG。127 はコマンド不在）
