@@ -17,14 +17,12 @@
   },
   "files": [
     "bin/",
-    "src/mcp/server.js",
-    "src/mcp/editor-process.js",
+    "src/mcp/*.js",
+    "!src/mcp/test-client.js",
     "src/mcp/tools/*.js",
-    "!src/mcp/tools/*.test.js",
     "editors/",
-    "!editors/**/*.test.js",
-    "skills/generate/",
-    "skills/edit/SKILL.md",
+    "skills/",
+    "!**/*.test.js",
     "README.md",
     "README.ja.md",
     "LICENSE"
