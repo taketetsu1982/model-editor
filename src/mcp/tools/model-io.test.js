@@ -119,4 +119,44 @@ describe('モデル JSON MCP tools', () => {
     const ordinary = await harness.client.callTool({ name: 'save_model', arguments: { path: ordinaryPath, model: { name: 'new' } } });
     expect(resultJson(ordinary)).toEqual({ ok: true });
   });
+
+  it('壊れた既存 JSON は force 無しで保持し、force があれば上書きする', async () => {
+    await connect();
+    const modelPath = path.join(fixture.root, 'broken.json');
+    const broken = '{"_variants":';
+    fs.writeFileSync(modelPath, broken);
+
+    const rejected = await harness.client.callTool({ name: 'save_model', arguments: { path: modelPath, model: { name: 'new' } } });
+    expect(rejected.isError).toBe(true);
+    expect(fs.readFileSync(modelPath, 'utf8')).toBe(broken);
+
+    const forced = await harness.client.callTool({ name: 'save_model', arguments: { path: modelPath, model: { name: 'new' }, force: true } });
+    expect(resultJson(forced)).toEqual({ ok: true });
+    expect(JSON.parse(fs.readFileSync(modelPath, 'utf8'))).toEqual({ name: 'new' });
+  });
+
+  it('読み取り不能な既存ファイルは force があっても保持する', async () => {
+    await connect();
+    const modelPath = path.join(fixture.root, 'unreadable.json');
+    const original = '{"name":"original"}\n';
+    fs.writeFileSync(modelPath, original);
+    fs.chmodSync(modelPath, 0o000);
+
+    try {
+      try {
+        fs.readFileSync(modelPath, 'utf8');
+        console.warn('SKIPPED: 現在の実行ユーザーは mode 000 のファイルを読み取れるため EACCES を再現できません');
+        return;
+      } catch (error) {
+        if (error.code !== 'EACCES') throw error;
+      }
+
+      const rejected = await harness.client.callTool({ name: 'save_model', arguments: { path: modelPath, model: { name: 'new' }, force: true } });
+      expect(rejected.isError).toBe(true);
+    } finally {
+      fs.chmodSync(modelPath, 0o600);
+    }
+
+    expect(fs.readFileSync(modelPath, 'utf8')).toBe(original);
+  });
 });

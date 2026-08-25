@@ -109,6 +109,7 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 | AC-02-3 | `save_model` は一時ファイルへ書いてから rename する（既存 `editors/server.js` の PUT /model と同じ原子的置換） |
 | AC-02-5 | `save_model` は存在しないパスに対して**新規ファイルを作成する**（generate 導線が新規モデルの書き出しを含むため）。ただし親ディレクトリが存在しない場合はディレクトリを作らずエラーを返す |
 | AC-02-4 | **既存ファイルがある場合に限り**、それが `_variants` キーを持つなら、`save_model` は書き込まずエラーを返し、意図的な上書きには `force: true` を要求する（MCP tool は対話でユーザーに確認できないため、確認をパラメータへ外部化する） |
+| AC-02-6 | 既存ファイルが**パースできない**場合、`force: true` があれば「判定不能だが明示的な上書き」として書き込む。`force` が無ければ書き込まずエラーを返す。ただし **`ENOENT` 以外の読み取り失敗（`EACCES` 等）は `force` があっても拒否する**——rename は親ディレクトリの権限だけで成立するため、読めないファイルを破壊できてしまい、`force` の意味が「変種保護の解除」から「読み取り不能ファイルの破壊的回復」へ拡大する |
 | AC-03-1 | `open_editor(path)` はローカルサーバを起動し、URL を返して即座に return する（編集完了を待たない） |
 | AC-03-2 | 既にエディタが起動中の状態で `open_editor` を呼ぶと、新規起動せず既存の URL を返す |
 | AC-03-3 | `close_editor()` は起動中のサーバを停止する。起動していない場合もエラーにせず正常終了する |
@@ -145,6 +146,8 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 | 保存先の親ディレクトリが存在しない | `save_model` の入口 | ディレクトリを自動作成せずエラーを返す（意図しない場所への書き出しを防ぐ） | tool のエラー応答 |
 | ポートが全滅（20回試行して空きなし） | `editors/server.js` の起動失敗 | エラーを返す。MCP サーバー自体は落とさない | stderr + tool のエラー応答 |
 | localhost バインドがサンドボックスに阻まれる | 同上 | 「この実行環境ではエディタを起動できない」と明示し、`read_model`/`save_model` での編集を案内する | tool のエラー応答 |
+| 既存ファイルが壊れた JSON で `force` が無い | `save_model` の入口 | 書き込まずエラーを返す | tool のエラー応答 |
+| 既存ファイルが読めない（`EACCES` 等） | `save_model` の入口 | `force` の有無によらず書き込まずエラーを返す | tool のエラー応答 |
 | 保存対象が編集中に外部から変更された | 検知しない（**既知の制約**） | — | — |
 | 子プロセスが異常終了 | 終了イベント | 状態を「停止」へ戻す。次の `open_editor` で再起動できる | stderr |
 
@@ -160,7 +163,7 @@ Phase 1 は Phase 2 の前提（依存を宣言する場所が無いと SDK を�
 |---|---|---|---|
 | `get_modeling_guide` | `section?: "glossary" \| "schema" \| "patterns" \| "examples"` | markdown テキスト | 省略時は全文連結 |
 | `read_model` | `path: string`（絶対パス推奨） | モデル JSON | パース失敗はエラー |
-| `save_model` | `path: string`, `model: object`, `force?: boolean` | `{ ok: true }` | 原子的置換。新規作成可（親ディレクトリは作らない）。既存かつ `_variants` 保持なら `force: true` 無しでは拒否 |
+| `save_model` | `path: string`, `model: object`, `force?: boolean` | `{ ok: true }` | 原子的置換。新規作成可（親ディレクトリは作らない）。既存ファイルは、`_variants` 保持（AC-02-4）またはパース不能（AC-02-6）なら `force: true` 無しでは拒否。`ENOENT` 以外の読み取り失敗は `force` の有無によらず拒否（AC-02-6） |
 | `open_editor` | `path: string` | `{ url: string }` | ローカル専用。編集完了を待たない |
 | `close_editor` | なし | `{ ok: true }` | 冪等 |
 
