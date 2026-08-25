@@ -195,7 +195,7 @@ N/A。本 Epic は配布形態とプロトコル境界の変更であり、エ�
 |---|---|
 | セキュリティ（パストラバーサル） | 静的配信は既存 `resolveStaticPath` のガードをそのまま使う。`read_model` / `save_model` の path は MCP クライアント（＝ホスト LLM）が渡すため、**サーバー側では制限しない**——MCP サーバーはユーザーのローカル権限で動く道具であり、ホスト側の権限機構が一次のゲートである。この判断を tool description に明記する |
 | ネットワーク露出 | 既存通り `127.0.0.1` のみにバインドする。変更しない |
-| 依存 | `@modelcontextprotocol/sdk` を runtime 依存に、`vitest` を devDependency に入れる。それ以外は増やさない |
+| 依存 | `@modelcontextprotocol/sdk` と `zod` を runtime 依存に、`vitest` を devDependency に入れる。それ以外は増やさない。`zod` は SDK の `registerTool` が `inputSchema` に zod スキーマ（または standard-schema 互換）しか受け付けないため必須で、SDK 経由で実際に導入される。**依存の総数は増えないが、宣言しなければ hoisting 頼みの未宣言依存になる**ので明示する |
 | 後方互換 | Claude Code plugin 経路（`skills/`）は Phase 3 完了後も動作し続ける。MCP 未登録でも壊れない（AC-05-3） |
 | 検証 | 各 Phase で `npm test`。Phase 2 は加えて実クライアント（Claude Code と Codex の2系統）での手動疎通を必須とする。**`npx github:` は開発環境の npm 設定で禁止されている**（`EALLOWGIT`）ため、配布経路の検証は `npm pack` した tarball をインストールして `bin` を叩く形で代替する（Phase 1 で実測・成功） |
 | バージョニング | `.claude-plugin/plugin.json` と `package.json` の version を一致させる。乖離を検知する手段は現状無い（#54） |

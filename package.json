@@ -15,6 +15,18 @@
   "bin": {
     "model-editor": "bin/model-editor.js"
   },
+  "files": [
+    "bin/",
+    "src/mcp/*.js",
+    "!src/mcp/test-client.js",
+    "src/mcp/tools/*.js",
+    "editors/",
+    "skills/",
+    "!**/*.test.js",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "vitest run"
   },
@@ -22,6 +34,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
   }
 }
