@@ -122,6 +122,31 @@ skills/
 npx vitest run
 ```
 
+## MCP server
+
+Use the package as a local stdio MCP server. It provides modeling guidance, model JSON read/write tools, and a local editor launcher. `open_editor` returns a localhost URL; your MCP client opens it when appropriate.
+
+For clients configured with JSON, add:
+
+```json
+{
+  "mcpServers": {
+    "model-editor": {
+      "command": "npx",
+      "args": ["-y", "github:taketetsu1982/model-editor", "mcp"]
+    }
+  }
+}
+```
+
+For Codex, add the equivalent command and arguments to your MCP server configuration:
+
+```toml
+[mcp_servers.model-editor]
+command = "npx"
+args = ["-y", "github:taketetsu1982/model-editor", "mcp"]
+```
+
 ## Claude Code plugin
 
 This repository can be used as a Claude Code plugin.
