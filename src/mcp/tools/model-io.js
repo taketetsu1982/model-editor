@@ -33,7 +33,14 @@ async function saveModel(modelPath, model, force) {
 
   let existing;
   try {
-    existing = JSON.parse(await fs.promises.readFile(modelPath, 'utf8'));
+    // Why not（force: true なら既存ファイルを一切読まない）: rename は親ディレクトリの権限だけで
+    // 成立するため、読み取り不能なファイルまで置換でき、force の意味が変種保護の解除を超えてしまう。
+    const existingText = await fs.promises.readFile(modelPath, 'utf8');
+    try {
+      existing = JSON.parse(existingText);
+    } catch (error) {
+      if (!force || !(error instanceof SyntaxError)) throw error;
+    }
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
